@@ -1,6 +1,8 @@
 ---
-title: openclaw_channels
-description: Lists all configured OpenClaw channels.
+page_title: "openclaw_channels Data Source - openclaw"
+subcategory: ""
+description: |-
+  Lists all configured OpenClaw channels.
 ---
 
 # openclaw_channels (Data Source)

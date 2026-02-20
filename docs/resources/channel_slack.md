@@ -1,6 +1,8 @@
 ---
-title: openclaw_channel_slack
-description: Manages the OpenClaw Slack channel.
+page_title: "openclaw_channel_slack Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages the OpenClaw Slack channel.
 ---
 
 # openclaw_channel_slack

@@ -1,6 +1,8 @@
 ---
-title: OpenClaw Terraform Provider
-description: Declarative configuration management for the OpenClaw AI gateway.
+page_title: "Provider: openclaw"
+subcategory: ""
+description: |-
+  The OpenClaw Terraform provider enables declarative, version-controlled management of your OpenClaw AI gateway configuration.
 ---
 
 # OpenClaw Terraform Provider
@@ -43,9 +45,97 @@ The provider has two transport backends:
 
 **File mode** reads and writes the JSON config file directly. Useful for pre-provisioning a config before the gateway starts, or in CI/CD pipelines.
 
-## Provider Configuration
+## Example Usage
 
-See [Provider Configuration](provider.mdx) for all options including authentication and environment variables.
+### WebSocket Mode (Recommended)
+
+Connect to a running OpenClaw gateway for live configuration:
+
+```hcl
+provider "openclaw" {
+  gateway_url = "ws://127.0.0.1:18789"
+  token       = var.gateway_token
+}
+```
+
+### File Mode
+
+Manage the config file directly without a running gateway:
+
+```hcl
+provider "openclaw" {
+  config_path = "~/.openclaw/openclaw.json"
+}
+```
+
+### Environment Variables Only
+
+All provider attributes can be set via environment variables, allowing a zero-config provider block:
+
+```hcl
+provider "openclaw" {}
+```
+
+```bash
+export OPENCLAW_GATEWAY_URL="ws://127.0.0.1:18789"
+export OPENCLAW_GATEWAY_TOKEN="your-secret-token"
+terraform apply
+```
+
+## Argument Reference
+
+| Argument | Type | Description | Env Var | Default |
+|----------|------|-------------|---------|---------|
+| `gateway_url` | String | WebSocket URL of the OpenClaw gateway. When set, the provider uses WebSocket mode. | `OPENCLAW_GATEWAY_URL` | -- |
+| `token` | String, Sensitive | Authentication token for the gateway WebSocket API. | `OPENCLAW_GATEWAY_TOKEN` | -- |
+| `config_path` | String | Path to the `openclaw.json` config file. Used when `gateway_url` is not set. | `OPENCLAW_CONFIG_PATH` | `~/.openclaw/openclaw.json` |
+
+## Mode Selection
+
+The provider automatically selects its transport mode:
+
+1. If `gateway_url` is set (or `OPENCLAW_GATEWAY_URL`), **WebSocket mode** is used. The provider connects to the gateway's WS RPC API and applies changes via `config.patch`.
+2. Otherwise, **File mode** is used. The provider reads and writes the JSON config file at `config_path`.
+
+### WebSocket Mode
+
+- Requires a running OpenClaw gateway
+- Changes are applied via the `config.patch` RPC
+- Config reloads happen according to the gateway's `reload_mode` setting
+- The `openclaw_health` data source is only available in this mode
+- Supports authentication via `token`
+
+### File Mode
+
+- No running gateway required
+- Reads and writes `openclaw.json` directly
+- Uses a mutex to safely handle parallel resource operations
+- The `openclaw_health` data source will return an error in this mode
+- Useful for pre-provisioning configs before deploying the gateway
+
+## Authentication
+
+When the gateway has `gateway.auth.mode` set to `"token"`, you must provide the matching token:
+
+```hcl
+variable "gateway_token" {
+  type      = string
+  sensitive = true
+}
+
+provider "openclaw" {
+  gateway_url = "ws://127.0.0.1:18789"
+  token       = var.gateway_token
+}
+```
+
+Or via environment variable:
+
+```bash
+export OPENCLAW_GATEWAY_TOKEN="your-secret-token"
+```
+
+If the gateway has no auth configured (`auth.mode = "none"`), the `token` argument can be omitted.
 
 ## Getting Started
 
@@ -109,67 +199,6 @@ terraform apply
 ```bash
 cat ~/.openclaw/openclaw.json
 ```
-
-## File Mode (Offline Provisioning)
-
-If no `gateway_url` is set, the provider operates on the config file directly:
-
-```hcl
-provider "openclaw" {
-  config_path = "/etc/openclaw/openclaw.json"
-}
-```
-
-This is useful for:
-- Building a config before deploying the gateway
-- CI/CD pipelines that generate configs for deployment
-- Environments where the gateway isn't running during provisioning
-
-## Resource Overview
-
-### Core
-
-| Resource | Description | Doc |
-|----------|-------------|-----|
-| `openclaw_gateway` | Server settings | [Reference](resources/gateway.mdx) |
-| `openclaw_agent_defaults` | Default agent config | [Reference](resources/agent_defaults.mdx) |
-| `openclaw_agent` | Individual agent | [Reference](resources/agent.mdx) |
-| `openclaw_binding` | Agent routing rules | [Reference](resources/binding.mdx) |
-| `openclaw_session` | Session lifecycle | [Reference](resources/session.mdx) |
-| `openclaw_messages` | Message handling | [Reference](resources/messages.mdx) |
-
-### Channels
-
-| Resource | Description | Doc |
-|----------|-------------|-----|
-| `openclaw_channel_whatsapp` | WhatsApp | [Reference](resources/channel_whatsapp.mdx) |
-| `openclaw_channel_telegram` | Telegram | [Reference](resources/channel_telegram.mdx) |
-| `openclaw_channel_discord` | Discord | [Reference](resources/channel_discord.mdx) |
-| `openclaw_channel_slack` | Slack | [Reference](resources/channel_slack.mdx) |
-| `openclaw_channel_signal` | Signal | [Reference](resources/channel_signal.mdx) |
-| `openclaw_channel_imessage` | iMessage | [Reference](resources/channel_imessage.mdx) |
-| `openclaw_channel_googlechat` | Google Chat | [Reference](resources/channel_googlechat.mdx) |
-
-### Extensions
-
-| Resource | Description | Doc |
-|----------|-------------|-----|
-| `openclaw_plugin` | Plugin entry | [Reference](resources/plugin.mdx) |
-| `openclaw_skill` | Skill entry | [Reference](resources/skill.mdx) |
-| `openclaw_hook` | Webhooks | [Reference](resources/hook.mdx) |
-| `openclaw_cron` | Cron jobs | [Reference](resources/cron.mdx) |
-| `openclaw_tools` | Tool access control | [Reference](resources/tools.mdx) |
-
-### Data Sources
-
-| Data Source | Description | Doc |
-|-------------|-------------|-----|
-| `openclaw_gateway` | Gateway settings (read-only) | [Reference](data-sources/gateway.mdx) |
-| `openclaw_agent_defaults` | Agent default settings (read-only) | [Reference](data-sources/agent_defaults.mdx) |
-| `openclaw_agents` | All configured agents (read-only) | [Reference](data-sources/agents.mdx) |
-| `openclaw_channels` | All configured channels (read-only) | [Reference](data-sources/channels.mdx) |
-| `openclaw_config` | Full raw config + hash | [Reference](data-sources/config.mdx) |
-| `openclaw_health` | Gateway health (WS only) | [Reference](data-sources/health.mdx) |
 
 ## Import
 

@@ -1,6 +1,8 @@
 ---
-title: openclaw_agents
-description: Lists all configured OpenClaw agents.
+page_title: "openclaw_agents Data Source - openclaw"
+subcategory: ""
+description: |-
+  Lists all configured OpenClaw agents.
 ---
 
 # openclaw_agents (Data Source)

@@ -1,6 +1,8 @@
 ---
-title: openclaw_config
-description: Reads the full OpenClaw configuration.
+page_title: "openclaw_config Data Source - openclaw"
+subcategory: ""
+description: |-
+  Reads the full OpenClaw configuration.
 ---
 
 # openclaw_config (Data Source)

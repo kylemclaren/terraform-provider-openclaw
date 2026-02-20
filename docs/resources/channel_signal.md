@@ -1,6 +1,8 @@
 ---
-title: openclaw_channel_signal
-description: Manages the OpenClaw Signal channel.
+page_title: "openclaw_channel_signal Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages the OpenClaw Signal channel.
 ---
 
 # openclaw_channel_signal

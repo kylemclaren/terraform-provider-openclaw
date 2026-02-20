@@ -1,6 +1,8 @@
 ---
-title: openclaw_session
-description: Manages OpenClaw session lifecycle configuration.
+page_title: "openclaw_session Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages OpenClaw session lifecycle configuration.
 ---
 
 # openclaw_session

@@ -1,6 +1,8 @@
 ---
-title: openclaw_channel_whatsapp
-description: Manages the OpenClaw WhatsApp channel.
+page_title: "openclaw_channel_whatsapp Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages the OpenClaw WhatsApp channel.
 ---
 
 # openclaw_channel_whatsapp

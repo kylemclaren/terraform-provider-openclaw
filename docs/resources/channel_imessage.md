@@ -1,6 +1,8 @@
 ---
-title: openclaw_channel_imessage
-description: Manages the OpenClaw iMessage channel.
+page_title: "openclaw_channel_imessage Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages the OpenClaw iMessage channel.
 ---
 
 # openclaw_channel_imessage

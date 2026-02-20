@@ -1,6 +1,8 @@
 ---
-title: openclaw_hook
-description: Manages the OpenClaw webhook configuration.
+page_title: "openclaw_hook Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages the OpenClaw webhook configuration.
 ---
 
 # openclaw_hook

@@ -1,6 +1,8 @@
 ---
-title: openclaw_gateway
-description: Manages the OpenClaw gateway server configuration.
+page_title: "openclaw_gateway Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages the OpenClaw gateway server configuration.
 ---
 
 # openclaw_gateway

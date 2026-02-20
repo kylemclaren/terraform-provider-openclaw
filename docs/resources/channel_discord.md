@@ -1,6 +1,8 @@
 ---
-title: openclaw_channel_discord
-description: Manages the OpenClaw Discord channel.
+page_title: "openclaw_channel_discord Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages the OpenClaw Discord channel.
 ---
 
 # openclaw_channel_discord

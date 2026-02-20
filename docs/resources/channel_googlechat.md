@@ -1,6 +1,8 @@
 ---
-title: openclaw_channel_googlechat
-description: Manages the OpenClaw Google Chat channel.
+page_title: "openclaw_channel_googlechat Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages the OpenClaw Google Chat channel.
 ---
 
 # openclaw_channel_googlechat

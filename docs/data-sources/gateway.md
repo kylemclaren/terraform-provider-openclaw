@@ -1,6 +1,8 @@
 ---
-title: openclaw_gateway
-description: Reads the current OpenClaw gateway server configuration.
+page_title: "openclaw_gateway Data Source - openclaw"
+subcategory: ""
+description: |-
+  Reads the current OpenClaw gateway server configuration.
 ---
 
 # openclaw_gateway (Data Source)

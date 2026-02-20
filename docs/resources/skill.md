@@ -1,6 +1,8 @@
 ---
-title: openclaw_skill
-description: Manages an OpenClaw skill entry.
+page_title: "openclaw_skill Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages an OpenClaw skill entry.
 ---
 
 # openclaw_skill

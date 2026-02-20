@@ -1,6 +1,8 @@
 ---
-title: openclaw_channel_telegram
-description: Manages the OpenClaw Telegram channel.
+page_title: "openclaw_channel_telegram Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages the OpenClaw Telegram channel.
 ---
 
 # openclaw_channel_telegram

@@ -1,6 +1,8 @@
 ---
-title: openclaw_tools
-description: Manages the OpenClaw tool access control configuration.
+page_title: "openclaw_tools Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages the OpenClaw tool access control configuration.
 ---
 
 # openclaw_tools

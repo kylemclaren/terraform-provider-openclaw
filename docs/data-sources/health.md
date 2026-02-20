@@ -1,6 +1,8 @@
 ---
-title: openclaw_health
-description: Reads the gateway health status.
+page_title: "openclaw_health Data Source - openclaw"
+subcategory: ""
+description: |-
+  Reads the gateway health status.
 ---
 
 # openclaw_health (Data Source)

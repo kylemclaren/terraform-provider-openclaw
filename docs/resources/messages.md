@@ -1,6 +1,8 @@
 ---
-title: openclaw_messages
-description: Manages OpenClaw message handling configuration.
+page_title: "openclaw_messages Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages OpenClaw message handling configuration.
 ---
 
 # openclaw_messages

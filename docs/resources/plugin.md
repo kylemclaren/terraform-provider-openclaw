@@ -1,6 +1,8 @@
 ---
-title: openclaw_plugin
-description: Manages an OpenClaw plugin entry.
+page_title: "openclaw_plugin Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages an OpenClaw plugin entry.
 ---
 
 # openclaw_plugin

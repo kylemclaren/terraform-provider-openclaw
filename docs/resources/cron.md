@@ -1,6 +1,8 @@
 ---
-title: openclaw_cron
-description: Manages the OpenClaw cron configuration.
+page_title: "openclaw_cron Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages the OpenClaw cron configuration.
 ---
 
 # openclaw_cron

@@ -1,11 +1,13 @@
 ---
-title: openclaw_agent
-description: Manages an individual OpenClaw agent entry.
+page_title: "openclaw_agent Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages an individual OpenClaw agent entry.
 ---
 
 # openclaw_agent
 
-Manages an individual agent entry in `agents.list[]`. Use this to define multiple agents with different models, identities, tools, and sandbox settings. Pair with [`openclaw_binding`](binding.mdx) to route channels to specific agents.
+Manages an individual agent entry in `agents.list[]`. Use this to define multiple agents with different models, identities, tools, and sandbox settings. Pair with [`openclaw_binding`](binding) to route channels to specific agents.
 
 ## Example Usage
 

@@ -1,6 +1,8 @@
 ---
-title: openclaw_binding
-description: Manages agent routing rules for OpenClaw.
+page_title: "openclaw_binding Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages agent routing rules for OpenClaw.
 ---
 
 # openclaw_binding

@@ -1,6 +1,8 @@
 ---
-title: openclaw_agent_defaults
-description: Manages default agent configuration for OpenClaw.
+page_title: "openclaw_agent_defaults Resource - openclaw"
+subcategory: ""
+description: |-
+  Manages default agent configuration for OpenClaw.
 ---
 
 # openclaw_agent_defaults

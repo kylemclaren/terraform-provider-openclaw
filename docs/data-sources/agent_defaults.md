@@ -1,6 +1,8 @@
 ---
-title: openclaw_agent_defaults
-description: Reads the current OpenClaw agent default configuration.
+page_title: "openclaw_agent_defaults Data Source - openclaw"
+subcategory: ""
+description: |-
+  Reads the current OpenClaw agent default configuration.
 ---
 
 # openclaw_agent_defaults (Data Source)
