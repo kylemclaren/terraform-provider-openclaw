@@ -1,0 +1,46 @@
+---
+title: openclaw_channel_whatsapp
+description: Manages the OpenClaw WhatsApp channel.
+---
+
+# openclaw_channel_whatsapp
+
+Manages the WhatsApp channel configuration including DM policy, allowlists, message chunking, and group settings.
+
+This is a singleton resource -- OpenClaw supports one WhatsApp account per gateway.
+
+## Example Usage
+
+```hcl
+resource "openclaw_channel_whatsapp" "main" {
+  dm_policy          = "pairing"
+  allow_from         = ["+15555550123", "+15555550456"]
+  text_chunk_limit   = 4000
+  send_read_receipts = true
+  group_policy       = "allowlist"
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `dm_policy` | String | No | `"pairing"` | DM policy: `pairing`, `allowlist`, `open`, `disabled`. |
+| `allow_from` | List(String) | No | -- | Phone numbers allowed to message (e.g. `+15555550123`). |
+| `text_chunk_limit` | Int64 | No | `4000` | Max characters per outbound message chunk. |
+| `chunk_mode` | String | No | `"length"` | Chunk splitting: `length` or `newline`. |
+| `media_max_mb` | Int64 | No | `50` | Max inbound media size in MB. |
+| `send_read_receipts` | Bool | No | `true` | Send read receipts (blue ticks). |
+| `group_policy` | String | No | `"allowlist"` | Group policy: `allowlist`, `open`, `disabled`. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channel_whatsapp"`. |
+
+## Import
+
+```bash
+terraform import openclaw_channel_whatsapp.main channel_whatsapp
+```

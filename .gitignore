@@ -1,0 +1,9 @@
+terraform-provider-openclaw
+dist/
+*.exe
+*.test
+*.out
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl

@@ -1,0 +1,5 @@
+# Ignore test-stack state so it doesn't get baked into images
+test-stack/.terraform
+test-stack/.terraform.lock.hcl
+test-stack/terraform.tfstate*
+test-stack/tfplan

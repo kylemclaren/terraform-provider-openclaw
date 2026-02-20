@@ -1,0 +1,53 @@
+---
+title: openclaw_agent_defaults
+description: Reads the current OpenClaw agent default configuration.
+---
+
+# openclaw_agent_defaults (Data Source)
+
+Reads the current agent default configuration without managing it. Useful for inspecting what model, timeouts, and sandbox settings are active.
+
+## Example Usage
+
+```hcl
+data "openclaw_agent_defaults" "current" {}
+
+output "primary_model" {
+  value = data.openclaw_agent_defaults.current.model_primary
+}
+
+output "timeout" {
+  value = data.openclaw_agent_defaults.current.timeout_seconds
+}
+```
+
+### Reference in other resources
+
+```hcl
+data "openclaw_agent_defaults" "current" {}
+
+resource "openclaw_agent" "fast" {
+  agent_id = "fast"
+  name     = "Fast Agent"
+  # Use a different model than the default
+  model    = "anthropic/claude-haiku-35"
+  # But inherit the same workspace via the data source
+  workspace = data.openclaw_agent_defaults.current.workspace
+}
+```
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"agent_defaults"`. |
+| `workspace` | String | Default agent workspace path. |
+| `model_primary` | String | Primary model in `provider/model` format. |
+| `thinking_default` | String | Default thinking level. |
+| `timeout_seconds` | Int64 | Agent run timeout in seconds. |
+| `max_concurrent` | Int64 | Max parallel agent runs across sessions. |
+| `user_timezone` | String | Timezone for system prompt context. |
+| `heartbeat_every` | String | Heartbeat interval duration string. |
+| `heartbeat_target` | String | Heartbeat delivery target. |
+| `sandbox_mode` | String | Sandbox mode: `off`, `non-main`, `all`. |
+| `sandbox_scope` | String | Sandbox scope: `session`, `agent`, `shared`. |

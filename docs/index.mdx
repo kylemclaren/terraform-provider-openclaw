@@ -1,0 +1,198 @@
+---
+title: OpenClaw Terraform Provider
+description: Declarative configuration management for the OpenClaw AI gateway.
+---
+
+# OpenClaw Terraform Provider
+
+The OpenClaw Terraform provider enables declarative, version-controlled management of your [OpenClaw](https://github.com/openclaw/openclaw) AI gateway configuration. Instead of editing `openclaw.json` by hand, define your gateway, channels, agents, and routing rules as Terraform resources.
+
+## Why Terraform for OpenClaw?
+
+- **Version control** -- track every config change in git
+- **Review workflows** -- PR-based approval for gateway changes
+- **Reproducibility** -- spin up identical configurations across environments
+- **Composition** -- combine OpenClaw config with cloud infrastructure in a single plan
+- **Drift detection** -- `terraform plan` shows exactly what changed outside Terraform
+
+## Architecture
+
+The provider has two transport backends:
+
+```
+                          +------------------+
+                          |   Terraform CLI  |
+                          +--------+---------+
+                                   |
+                          +--------v---------+
+                          | openclaw provider|
+                          +---+-----------+--+
+                              |           |
+                    +---------v--+   +----v--------+
+                    |  WSClient  |   | FileClient  |
+                    | (live RPC) |   | (JSON file) |
+                    +-----+------+   +------+------+
+                          |                 |
+                +---------v------+   +------v-----------+
+                | OpenClaw       |   | ~/.openclaw/     |
+                | Gateway :18789 |   |  openclaw.json   |
+                +----------------+   +------------------+
+```
+
+**WebSocket mode** connects to a running gateway and patches config via the `config.patch` RPC. Changes take effect immediately (depending on `reload_mode`).
+
+**File mode** reads and writes the JSON config file directly. Useful for pre-provisioning a config before the gateway starts, or in CI/CD pipelines.
+
+## Provider Configuration
+
+See [Provider Configuration](provider.mdx) for all options including authentication and environment variables.
+
+## Getting Started
+
+### 1. Install OpenClaw
+
+```bash
+npm install -g openclaw
+```
+
+### 2. Start the gateway
+
+```bash
+openclaw gateway --port 18789
+```
+
+### 3. Write your Terraform config
+
+```hcl
+terraform {
+  required_providers {
+    openclaw = {
+      source = "registry.terraform.io/kylemclaren/openclaw"
+    }
+  }
+}
+
+provider "openclaw" {
+  gateway_url = "ws://127.0.0.1:18789"
+  token       = var.gateway_token
+}
+
+resource "openclaw_gateway" "main" {
+  port        = 18789
+  bind        = "loopback"
+  reload_mode = "hybrid"
+}
+
+resource "openclaw_agent_defaults" "main" {
+  model_primary   = "anthropic/claude-sonnet-4-20250514"
+  workspace       = "~/.openclaw/workspace"
+  timeout_seconds = 600
+  heartbeat_every = "30m"
+}
+
+resource "openclaw_channel_whatsapp" "main" {
+  dm_policy  = "pairing"
+  allow_from = ["+15555550123"]
+}
+```
+
+### 4. Apply
+
+```bash
+terraform init
+terraform plan
+terraform apply
+```
+
+### 5. Verify
+
+```bash
+cat ~/.openclaw/openclaw.json
+```
+
+## File Mode (Offline Provisioning)
+
+If no `gateway_url` is set, the provider operates on the config file directly:
+
+```hcl
+provider "openclaw" {
+  config_path = "/etc/openclaw/openclaw.json"
+}
+```
+
+This is useful for:
+- Building a config before deploying the gateway
+- CI/CD pipelines that generate configs for deployment
+- Environments where the gateway isn't running during provisioning
+
+## Resource Overview
+
+### Core
+
+| Resource | Description | Doc |
+|----------|-------------|-----|
+| `openclaw_gateway` | Server settings | [Reference](resources/gateway.mdx) |
+| `openclaw_agent_defaults` | Default agent config | [Reference](resources/agent_defaults.mdx) |
+| `openclaw_agent` | Individual agent | [Reference](resources/agent.mdx) |
+| `openclaw_binding` | Agent routing rules | [Reference](resources/binding.mdx) |
+| `openclaw_session` | Session lifecycle | [Reference](resources/session.mdx) |
+| `openclaw_messages` | Message handling | [Reference](resources/messages.mdx) |
+
+### Channels
+
+| Resource | Description | Doc |
+|----------|-------------|-----|
+| `openclaw_channel_whatsapp` | WhatsApp | [Reference](resources/channel_whatsapp.mdx) |
+| `openclaw_channel_telegram` | Telegram | [Reference](resources/channel_telegram.mdx) |
+| `openclaw_channel_discord` | Discord | [Reference](resources/channel_discord.mdx) |
+| `openclaw_channel_slack` | Slack | [Reference](resources/channel_slack.mdx) |
+| `openclaw_channel_signal` | Signal | [Reference](resources/channel_signal.mdx) |
+| `openclaw_channel_imessage` | iMessage | [Reference](resources/channel_imessage.mdx) |
+| `openclaw_channel_googlechat` | Google Chat | [Reference](resources/channel_googlechat.mdx) |
+
+### Extensions
+
+| Resource | Description | Doc |
+|----------|-------------|-----|
+| `openclaw_plugin` | Plugin entry | [Reference](resources/plugin.mdx) |
+| `openclaw_skill` | Skill entry | [Reference](resources/skill.mdx) |
+| `openclaw_hook` | Webhooks | [Reference](resources/hook.mdx) |
+| `openclaw_cron` | Cron jobs | [Reference](resources/cron.mdx) |
+| `openclaw_tools` | Tool access control | [Reference](resources/tools.mdx) |
+
+### Data Sources
+
+| Data Source | Description | Doc |
+|-------------|-------------|-----|
+| `openclaw_gateway` | Gateway settings (read-only) | [Reference](data-sources/gateway.mdx) |
+| `openclaw_agent_defaults` | Agent default settings (read-only) | [Reference](data-sources/agent_defaults.mdx) |
+| `openclaw_agents` | All configured agents (read-only) | [Reference](data-sources/agents.mdx) |
+| `openclaw_channels` | All configured channels (read-only) | [Reference](data-sources/channels.mdx) |
+| `openclaw_config` | Full raw config + hash | [Reference](data-sources/config.mdx) |
+| `openclaw_health` | Gateway health (WS only) | [Reference](data-sources/health.mdx) |
+
+## Import
+
+All resources support `terraform import`. Singleton resources use a fixed ID:
+
+```bash
+terraform import openclaw_gateway.main gateway
+terraform import openclaw_session.main session
+```
+
+Array-based resources use their identifier:
+
+```bash
+terraform import openclaw_agent.research research
+terraform import openclaw_binding.discord_research "research/discord"
+terraform import openclaw_plugin.web_search web_search
+terraform import openclaw_skill.calculator calculator
+```
+
+## Examples
+
+See the [`examples/`](https://github.com/kylemclaren/terraform-provider-openclaw/tree/main/examples) directory:
+
+- **[basic](https://github.com/kylemclaren/terraform-provider-openclaw/tree/main/examples/basic)** -- Single gateway with WhatsApp and Telegram
+- **[multi-agent](https://github.com/kylemclaren/terraform-provider-openclaw/tree/main/examples/multi-agent)** -- Multiple agents with channel-based routing
+- **[full-stack](https://github.com/kylemclaren/terraform-provider-openclaw/tree/main/examples/full-stack)** -- Every resource type exercised

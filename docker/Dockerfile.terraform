@@ -1,0 +1,38 @@
+# Builds the openclaw Terraform provider from source and provides
+# terraform + go for running acceptance tests.
+
+FROM golang:1.25-bookworm AS builder
+
+# Install Terraform
+ARG TERRAFORM_VERSION=1.12.1
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        unzip ca-certificates curl && \
+    curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
+        -o /tmp/terraform.zip && \
+    unzip /tmp/terraform.zip -d /usr/local/bin/ && \
+    rm /tmp/terraform.zip && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work
+
+# Cache Go module downloads
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy full source and build the provider
+COPY . .
+RUN go build -o terraform-provider-openclaw .
+
+# Set up dev override so Terraform finds our locally-built provider
+RUN mkdir -p /root/.terraform.d && \
+    echo 'provider_installation { \n\
+  dev_overrides { \n\
+    "registry.terraform.io/kylemclaren/openclaw" = "/work" \n\
+  } \n\
+  direct {} \n\
+}' > /root/.terraform.d/dev.tfrc
+
+ENV TF_CLI_CONFIG_FILE=/root/.terraform.d/dev.tfrc
+ENV PATH="/work:${PATH}"
+
+CMD ["go", "test", "./...", "-v"]

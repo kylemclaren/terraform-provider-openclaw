@@ -1,0 +1,43 @@
+---
+title: openclaw_channel_imessage
+description: Manages the OpenClaw iMessage channel.
+---
+
+# openclaw_channel_imessage
+
+Manages the iMessage channel configuration. Requires macOS with iMessage configured.
+
+## Example Usage
+
+```hcl
+resource "openclaw_channel_imessage" "main" {
+  enabled      = true
+  dm_policy    = "allowlist"
+  allow_from   = ["+15555550123"]
+  media_max_mb = 16
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable the iMessage channel. |
+| `dm_policy` | String | No | `"pairing"` | DM policy: `pairing`, `allowlist`, `open`, `disabled`. |
+| `allow_from` | List(String) | No | -- | Phone numbers or identifiers allowed to message. |
+| `history_limit` | Int64 | No | `50` | Max chat history messages to fetch. |
+| `media_max_mb` | Int64 | No | `16` | Max inbound media size in MB. |
+| `service` | String | No | -- | iMessage service selection. Defaults to auto. |
+| `region` | String | No | -- | Region for the iMessage channel. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channel_imessage"`. |
+
+## Import
+
+```bash
+terraform import openclaw_channel_imessage.main channel_imessage
+```

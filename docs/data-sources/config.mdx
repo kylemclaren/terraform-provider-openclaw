@@ -1,0 +1,41 @@
+---
+title: openclaw_config
+description: Reads the full OpenClaw configuration.
+---
+
+# openclaw_config (Data Source)
+
+Reads the full current OpenClaw configuration as a raw JSON string with an opaque hash for change detection. Works in both WebSocket and file modes.
+
+## Example Usage
+
+```hcl
+data "openclaw_config" "current" {}
+
+output "config_hash" {
+  value = data.openclaw_config.current.hash
+}
+
+output "raw_config" {
+  value = data.openclaw_config.current.raw
+}
+```
+
+### Use with `jsondecode` for conditional logic
+
+```hcl
+data "openclaw_config" "current" {}
+
+locals {
+  config = jsondecode(data.openclaw_config.current.raw)
+  has_whatsapp = try(local.config.channels.whatsapp, null) != null
+}
+```
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"config"`. |
+| `raw` | String | The full JSON config string. |
+| `hash` | String | Opaque hash of the config. Changes when the config changes. |

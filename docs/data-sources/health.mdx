@@ -1,0 +1,49 @@
+---
+title: openclaw_health
+description: Reads the gateway health status.
+---
+
+# openclaw_health (Data Source)
+
+Reads the health status of a running OpenClaw gateway. **Requires WebSocket mode** -- will return an error in file mode.
+
+## Example Usage
+
+```hcl
+data "openclaw_health" "gw" {}
+
+output "gateway_ok" {
+  value = data.openclaw_health.gw.ok
+}
+
+output "default_agent" {
+  value = data.openclaw_health.gw.default_agent_id
+}
+```
+
+### Use as a precondition
+
+```hcl
+data "openclaw_health" "gw" {}
+
+resource "openclaw_gateway" "main" {
+  port = 18789
+
+  lifecycle {
+    precondition {
+      condition     = data.openclaw_health.gw.ok
+      error_message = "Gateway health check failed."
+    }
+  }
+}
+```
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"health"`. |
+| `ok` | Bool | Whether the gateway health check passed. |
+| `timestamp` | Int64 | Server timestamp (Unix milliseconds) when health was checked. |
+| `default_agent_id` | String | The default agent ID configured on the gateway. |
+| `heartbeat_seconds` | Int64 | Heartbeat interval in seconds. |

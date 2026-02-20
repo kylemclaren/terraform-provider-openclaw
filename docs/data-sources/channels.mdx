@@ -1,0 +1,71 @@
+---
+title: openclaw_channels
+description: Lists all configured OpenClaw channels.
+---
+
+# openclaw_channels (Data Source)
+
+Lists all configured channels with summary information. Returns both a flat list of channel names and a structured list with per-channel enabled state and DM policy.
+
+## Example Usage
+
+```hcl
+data "openclaw_channels" "all" {}
+
+output "configured_channels" {
+  value = data.openclaw_channels.all.names
+}
+
+output "channel_count" {
+  value = length(data.openclaw_channels.all.names)
+}
+```
+
+### Check if a specific channel is configured
+
+```hcl
+data "openclaw_channels" "all" {}
+
+locals {
+  has_whatsapp = contains(data.openclaw_channels.all.names, "whatsapp")
+  has_discord  = contains(data.openclaw_channels.all.names, "discord")
+}
+
+resource "openclaw_binding" "whatsapp_main" {
+  count         = local.has_whatsapp ? 1 : 0
+  agent_id      = "main"
+  match_channel = "whatsapp"
+}
+```
+
+### Inspect channel details
+
+```hcl
+data "openclaw_channels" "all" {}
+
+output "channels" {
+  value = {
+    for ch in data.openclaw_channels.all.channels :
+    ch.name => {
+      enabled   = ch.enabled
+      dm_policy = ch.dm_policy
+    }
+  }
+}
+```
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channels"`. |
+| `names` | List(String) | List of configured channel names (e.g. `whatsapp`, `telegram`, `discord`). |
+| `channels` | List(Object) | List of channels with summary configuration. |
+
+### Nested `channels` Object
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `name` | String | Channel name (e.g. `whatsapp`, `telegram`, `discord`, `slack`, `signal`, `imessage`, `googlechat`). |
+| `enabled` | Bool | Whether the channel is enabled. Channels without an explicit `enabled` field are considered enabled if configured. |
+| `dm_policy` | String | DM policy for this channel. |

@@ -1,0 +1,60 @@
+---
+title: openclaw_agent_defaults
+description: Manages default agent configuration for OpenClaw.
+---
+
+# openclaw_agent_defaults
+
+Manages the default configuration applied to all agents unless overridden per-agent. Controls the primary model, workspace, heartbeat behavior, sandbox settings, and execution limits.
+
+This is a singleton resource -- only one `openclaw_agent_defaults` block should exist per configuration.
+
+## Example Usage
+
+```hcl
+resource "openclaw_agent_defaults" "main" {
+  workspace       = "~/.openclaw/workspace"
+  model_primary   = "anthropic/claude-sonnet-4-20250514"
+  model_fallbacks = ["openai/gpt-4.1"]
+
+  thinking_default = "low"
+  timeout_seconds  = 600
+  max_concurrent   = 2
+  user_timezone    = "America/New_York"
+
+  heartbeat_every  = "30m"
+  heartbeat_target = "last"
+
+  sandbox_mode  = "non-main"
+  sandbox_scope = "agent"
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `workspace` | String | No | `"~/.openclaw/workspace"` | Default workspace path for agents. |
+| `model_primary` | String | No | -- | Primary model in `provider/model` format. |
+| `model_fallbacks` | List(String) | No | -- | Ordered fallback model list. |
+| `thinking_default` | String | No | -- | Thinking level: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`. |
+| `verbose_default` | String | No | -- | Verbose output: `on` or `off`. |
+| `timeout_seconds` | Int64 | No | `600` | Agent run timeout in seconds. |
+| `max_concurrent` | Int64 | No | `1` | Max parallel agent runs across all sessions. |
+| `user_timezone` | String | No | -- | Timezone for system prompt context (e.g. `America/Chicago`). |
+| `heartbeat_every` | String | No | -- | Heartbeat interval (e.g. `30m`, `2h`). Set to `0m` to disable. |
+| `heartbeat_target` | String | No | -- | Heartbeat delivery target: `last`, `whatsapp`, `telegram`, `discord`, `none`. |
+| `sandbox_mode` | String | No | -- | Sandbox mode: `off`, `non-main`, `all`. |
+| `sandbox_scope` | String | No | -- | Sandbox scope: `session`, `agent`, `shared`. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"agent_defaults"`. |
+
+## Import
+
+```bash
+terraform import openclaw_agent_defaults.main agent_defaults
+```

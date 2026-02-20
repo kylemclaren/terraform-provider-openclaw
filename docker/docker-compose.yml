@@ -1,0 +1,68 @@
+# Docker Compose for local integration testing of the OpenClaw Terraform provider.
+#
+# All services use --network host so the gateway binds to real loopback.
+# This ensures WS clients are treated as local connections → device identity
+# is auto-approved (no NOT_PAIRED errors from the device pairing layer).
+#
+# Usage:
+#   ./docker/test.sh              # one-command: build, start, test, teardown
+#   docker compose -f docker/docker-compose.yml up -d gateway
+#   docker compose -f docker/docker-compose.yml run --rm terraform
+
+services:
+  # ── OpenClaw Gateway ──────────────────────────────────────────
+  # Built from the official upstream Dockerfile (cloned at build time).
+  # Listens on ws://127.0.0.1:18789, pre-seeded with a known auth token.
+  gateway:
+    build:
+      context: docker
+      dockerfile: Dockerfile.gateway
+    environment:
+      HOME: /home/node
+      NODE_ENV: production
+      OPENCLAW_GATEWAY_TOKEN: "${OPENCLAW_GATEWAY_TOKEN:-test-token-for-ci}"
+    network_mode: host
+    init: true
+    # healthcheck over HTTP to loopback (host network)
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:18789/"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  # ── Terraform test runner ─────────────────────────────────────
+  # Builds the provider from source, then runs acceptance tests
+  # or applies the test-stack config against the gateway.
+  terraform:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.terraform
+    environment:
+      TF_ACC: "1"
+      OPENCLAW_GATEWAY_URL: "ws://127.0.0.1:18789"
+      OPENCLAW_GATEWAY_TOKEN: "${OPENCLAW_GATEWAY_TOKEN:-test-token-for-ci}"
+    network_mode: host
+    volumes:
+      - tf-state:/work/docker/test-stack
+    # Default: run the file-mode acceptance tests (no gateway dependency)
+    command: ["go", "test", "./internal/provider/", "-v", "-timeout", "120m", "-count=1", "-run", "TestAccFileMode"]
+
+  # ── Interactive shell for manual testing ──────────────────────
+  # docker compose -f docker/docker-compose.yml run --rm shell
+  shell:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.terraform
+    environment:
+      OPENCLAW_GATEWAY_URL: "ws://127.0.0.1:18789"
+      OPENCLAW_GATEWAY_TOKEN: "${OPENCLAW_GATEWAY_TOKEN:-test-token-for-ci}"
+    network_mode: host
+    volumes:
+      - tf-state:/work/docker/test-stack
+    entrypoint: /bin/sh
+    stdin_open: true
+    tty: true
+
+volumes:
+  tf-state:
