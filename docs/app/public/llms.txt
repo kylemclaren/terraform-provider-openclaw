@@ -1,0 +1,48 @@
+# OpenClaw Terraform Provider
+
+> Declarative configuration management for the OpenClaw AI gateway.
+
+Terraform provider for OpenClaw — an AI gateway that connects chat platforms (WhatsApp, Telegram, Discord, Slack, Signal, iMessage, Google Chat) to AI coding agents.
+
+Registry: registry.terraform.io/kylemclaren/openclaw
+
+## Docs
+
+- [Overview](https://openclaw-tf.vercel.app/docs)
+- [Provider Configuration](https://openclaw-tf.vercel.app/docs/provider)
+
+## Examples
+
+- [Basic: Gateway with Two Channels](https://openclaw-tf.vercel.app/docs/examples/basic)
+- [Multi-Agent: Channel-Based Routing](https://openclaw-tf.vercel.app/docs/examples/multi-agent)
+- [Full-Stack: Every Resource Type](https://openclaw-tf.vercel.app/docs/examples/full-stack)
+
+## Resources
+
+- [openclaw_gateway](https://openclaw-tf.vercel.app/docs/resources/gateway)
+- [openclaw_agent_defaults](https://openclaw-tf.vercel.app/docs/resources/agent-defaults)
+- [openclaw_agent](https://openclaw-tf.vercel.app/docs/resources/agent)
+- [openclaw_binding](https://openclaw-tf.vercel.app/docs/resources/binding)
+- [openclaw_session](https://openclaw-tf.vercel.app/docs/resources/session)
+- [openclaw_messages](https://openclaw-tf.vercel.app/docs/resources/messages)
+- [openclaw_channel_whatsapp](https://openclaw-tf.vercel.app/docs/resources/channel-whatsapp)
+- [openclaw_channel_telegram](https://openclaw-tf.vercel.app/docs/resources/channel-telegram)
+- [openclaw_channel_discord](https://openclaw-tf.vercel.app/docs/resources/channel-discord)
+- [openclaw_channel_slack](https://openclaw-tf.vercel.app/docs/resources/channel-slack)
+- [openclaw_channel_signal](https://openclaw-tf.vercel.app/docs/resources/channel-signal)
+- [openclaw_channel_imessage](https://openclaw-tf.vercel.app/docs/resources/channel-imessage)
+- [openclaw_channel_googlechat](https://openclaw-tf.vercel.app/docs/resources/channel-googlechat)
+- [openclaw_plugin](https://openclaw-tf.vercel.app/docs/resources/plugin)
+- [openclaw_skill](https://openclaw-tf.vercel.app/docs/resources/skill)
+- [openclaw_hook](https://openclaw-tf.vercel.app/docs/resources/hook)
+- [openclaw_cron](https://openclaw-tf.vercel.app/docs/resources/cron)
+- [openclaw_tools](https://openclaw-tf.vercel.app/docs/resources/tools)
+
+## Data Sources
+
+- [openclaw_config](https://openclaw-tf.vercel.app/docs/data-sources/config)
+- [openclaw_health](https://openclaw-tf.vercel.app/docs/data-sources/health)
+- [openclaw_gateway](https://openclaw-tf.vercel.app/docs/data-sources/gateway)
+- [openclaw_agent_defaults](https://openclaw-tf.vercel.app/docs/data-sources/agent-defaults)
+- [openclaw_agents](https://openclaw-tf.vercel.app/docs/data-sources/agents)
+- [openclaw_channels](https://openclaw-tf.vercel.app/docs/data-sources/channels)

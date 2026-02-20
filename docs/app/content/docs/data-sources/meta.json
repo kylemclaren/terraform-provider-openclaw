@@ -1,0 +1,11 @@
+{
+  "title": "Data Sources",
+  "pages": [
+    "config",
+    "health",
+    "gateway",
+    "agent-defaults",
+    "agents",
+    "channels"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "provider",
+    "examples",
+    "resources",
+    "data-sources",
+    "---For LLMs---",
+    "[FileText][llms.txt](/llms.txt)",
+    "[FileStack][llms-full.txt](/llms-full.txt)"
+  ]
+}

@@ -1,0 +1,47 @@
+---
+title: openclaw_messages
+description: Manages OpenClaw message handling configuration.
+icon: MessageSquare
+---
+
+Manages how the gateway handles inbound and outbound messages, including queue behavior, debounce timing, and acknowledgment reactions.
+
+This is a singleton resource.
+
+## Example Usage
+
+```hcl
+resource "openclaw_messages" "main" {
+  response_prefix    = "[Bot] "
+  ack_reaction       = "eyes"
+  ack_reaction_scope = "all"
+  queue_mode         = "steer"
+  queue_debounce_ms  = 1500
+  queue_cap          = 30
+  inbound_debounce_ms = 3000
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `response_prefix` | String | No | -- | Prefix prepended to every agent response. |
+| `ack_reaction` | String | No | -- | Emoji reaction to acknowledge message receipt. |
+| `ack_reaction_scope` | String | No | -- | Scope for ack reactions: `group-mentions`, `group-all`, `direct`, `all`. |
+| `queue_mode` | String | No | -- | Queue mode: `steer`, `followup`, `collect`, `steer-backlog`, `queue`, `interrupt`. |
+| `queue_debounce_ms` | Int64 | No | `1000` | Queue debounce in milliseconds. |
+| `queue_cap` | Int64 | No | `20` | Maximum queued messages. |
+| `inbound_debounce_ms` | Int64 | No | `2000` | Inbound message debounce in milliseconds. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"messages"`. |
+
+## Import
+
+```bash
+terraform import openclaw_messages.main messages
+```

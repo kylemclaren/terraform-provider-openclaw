@@ -1,0 +1,48 @@
+---
+title: openclaw_channel_telegram
+description: Manages the OpenClaw Telegram channel.
+icon: Send
+---
+
+Manages the Telegram channel configuration including bot token, DM policy, streaming, and webhook settings.
+
+## Example Usage
+
+```hcl
+resource "openclaw_channel_telegram" "main" {
+  enabled       = true
+  bot_token     = var.telegram_bot_token
+  dm_policy     = "allowlist"
+  allow_from    = ["tg:123456789"]
+  stream_mode   = "partial"
+  reply_to_mode = "first"
+  history_limit = 50
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable the Telegram channel. |
+| `bot_token` | String | No | -- | Telegram bot token. **Sensitive.** Falls back to `TELEGRAM_BOT_TOKEN` env var. |
+| `dm_policy` | String | No | `"pairing"` | DM policy: `pairing`, `allowlist`, `open`, `disabled`. |
+| `allow_from` | List(String) | No | -- | Allowed Telegram user IDs (e.g. `tg:123456789`). |
+| `stream_mode` | String | No | -- | Stream preview: `off`, `partial`, `block`. |
+| `reply_to_mode` | String | No | -- | Reply-to behavior: `off`, `first`, `all`. |
+| `link_preview` | Bool | No | -- | Enable link previews in outbound messages. |
+| `history_limit` | Int64 | No | -- | Max chat history messages to fetch for context. |
+| `media_max_mb` | Int64 | No | -- | Max inbound media size in MB. |
+| `webhook_url` | String | No | -- | Webhook URL for Telegram webhook mode. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channel_telegram"`. |
+
+## Import
+
+```bash
+terraform import openclaw_channel_telegram.main channel_telegram
+```

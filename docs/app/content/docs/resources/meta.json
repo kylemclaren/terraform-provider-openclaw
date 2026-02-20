@@ -1,0 +1,25 @@
+{
+  "title": "Resources",
+  "pages": [
+    "gateway",
+    "agent-defaults",
+    "agent",
+    "binding",
+    "session",
+    "messages",
+    "---Channels---",
+    "channel-whatsapp",
+    "channel-telegram",
+    "channel-discord",
+    "channel-slack",
+    "channel-signal",
+    "channel-imessage",
+    "channel-googlechat",
+    "---Automation---",
+    "plugin",
+    "skill",
+    "hook",
+    "cron",
+    "tools"
+  ]
+}

@@ -1,0 +1,2152 @@
+# OpenClaw Terraform Provider
+
+> https://openclaw-tf.vercel.app/docs
+
+> **Warning:** **Unofficial community provider** — This project is not affiliated with, endorsed by, or sponsored by the OpenClaw project or OpenAI. It is an independent, community-maintained Terraform provider.
+
+The OpenClaw Terraform provider enables declarative, version-controlled management of your [OpenClaw](https://github.com/openclaw/openclaw) AI gateway configuration. Instead of editing `openclaw.json` by hand, define your gateway, channels, agents, and routing rules as Terraform resources.
+
+## Why Terraform for OpenClaw?
+
+- **Version control** -- track every config change in git
+- **Review workflows** -- PR-based approval for gateway changes
+- **Reproducibility** -- spin up identical configurations across environments
+- **Composition** -- combine OpenClaw config with cloud infrastructure in a single plan
+- **Drift detection** -- `terraform plan` shows exactly what changed outside Terraform
+
+## Architecture
+
+The provider has two transport backends:
+
+**WebSocket mode** connects to a running gateway and patches config via the `config.patch` RPC. Changes take effect immediately (depending on `reload_mode`).
+
+**File mode** reads and writes the JSON config file directly. Useful for pre-provisioning a config before the gateway starts, or in CI/CD pipelines.
+
+## Provider Configuration
+
+See [Provider Configuration](/docs/provider) for all options including authentication and environment variables.
+
+## Getting Started
+
+### 1. Install OpenClaw
+
+```bash
+npm install -g openclaw
+```
+
+### 2. Start the gateway
+
+```bash
+openclaw gateway --port 18789
+```
+
+### 3. Write your Terraform config
+
+```hcl
+terraform {
+  required_providers {
+    openclaw = {
+      source = "registry.terraform.io/kylemclaren/openclaw"
+    }
+  }
+}
+
+provider "openclaw" {
+  gateway_url = "ws://127.0.0.1:18789"
+  token       = var.gateway_token
+}
+
+resource "openclaw_gateway" "main" {
+  port        = 18789
+  bind        = "loopback"
+  reload_mode = "hybrid"
+}
+
+resource "openclaw_agent_defaults" "main" {
+  model_primary   = "anthropic/claude-sonnet-4-20250514"
+  workspace       = "~/.openclaw/workspace"
+  timeout_seconds = 600
+  heartbeat_every = "30m"
+}
+
+resource "openclaw_channel_whatsapp" "main" {
+  dm_policy  = "pairing"
+  allow_from = ["+15555550123"]
+}
+```
+
+### 4. Apply
+
+```bash
+terraform init
+terraform plan
+terraform apply
+```
+
+### 5. Verify
+
+```bash
+cat ~/.openclaw/openclaw.json
+```
+
+## File Mode (Offline Provisioning)
+
+If no `gateway_url` is set, the provider operates on the config file directly:
+
+```hcl
+provider "openclaw" {
+  config_path = "/etc/openclaw/openclaw.json"
+}
+```
+
+This is useful for:
+- Building a config before deploying the gateway
+- CI/CD pipelines that generate configs for deployment
+- Environments where the gateway isn't running during provisioning
+
+## Resource Overview
+
+### Core
+
+| Resource | Description | Doc |
+|----------|-------------|-----|
+| `openclaw_gateway` | Server settings | [Reference](/docs/resources/gateway) |
+| `openclaw_agent_defaults` | Default agent config | [Reference](/docs/resources/agent-defaults) |
+| `openclaw_agent` | Individual agent | [Reference](/docs/resources/agent) |
+| `openclaw_binding` | Agent routing rules | [Reference](/docs/resources/binding) |
+| `openclaw_session` | Session lifecycle | [Reference](/docs/resources/session) |
+| `openclaw_messages` | Message handling | [Reference](/docs/resources/messages) |
+
+### Channels
+
+| Resource | Description | Doc |
+|----------|-------------|-----|
+| `openclaw_channel_whatsapp` | WhatsApp | [Reference](/docs/resources/channel-whatsapp) |
+| `openclaw_channel_telegram` | Telegram | [Reference](/docs/resources/channel-telegram) |
+| `openclaw_channel_discord` | Discord | [Reference](/docs/resources/channel-discord) |
+| `openclaw_channel_slack` | Slack | [Reference](/docs/resources/channel-slack) |
+| `openclaw_channel_signal` | Signal | [Reference](/docs/resources/channel-signal) |
+| `openclaw_channel_imessage` | iMessage | [Reference](/docs/resources/channel-imessage) |
+| `openclaw_channel_googlechat` | Google Chat | [Reference](/docs/resources/channel-googlechat) |
+
+### Extensions
+
+| Resource | Description | Doc |
+|----------|-------------|-----|
+| `openclaw_plugin` | Plugin entry | [Reference](/docs/resources/plugin) |
+| `openclaw_skill` | Skill entry | [Reference](/docs/resources/skill) |
+| `openclaw_hook` | Webhooks | [Reference](/docs/resources/hook) |
+| `openclaw_cron` | Cron jobs | [Reference](/docs/resources/cron) |
+| `openclaw_tools` | Tool access control | [Reference](/docs/resources/tools) |
+
+### Data Sources
+
+| Data Source | Description | Doc |
+|-------------|-------------|-----|
+| `openclaw_gateway` | Gateway settings (read-only) | [Reference](/docs/data-sources/gateway) |
+| `openclaw_agent_defaults` | Agent default settings (read-only) | [Reference](/docs/data-sources/agent-defaults) |
+| `openclaw_agents` | All configured agents (read-only) | [Reference](/docs/data-sources/agents) |
+| `openclaw_channels` | All configured channels (read-only) | [Reference](/docs/data-sources/channels) |
+| `openclaw_config` | Full raw config + hash | [Reference](/docs/data-sources/config) |
+| `openclaw_health` | Gateway health (WS only) | [Reference](/docs/data-sources/health) |
+
+## Import
+
+All resources support `terraform import`. Singleton resources use a fixed ID:
+
+```bash
+terraform import openclaw_gateway.main gateway
+terraform import openclaw_session.main session
+```
+
+Array-based resources use their identifier:
+
+```bash
+terraform import openclaw_agent.research research
+terraform import openclaw_binding.discord_research "research/discord"
+terraform import openclaw_plugin.web_search web_search
+terraform import openclaw_skill.calculator calculator
+```
+
+## Examples
+
+See the [`examples/`](https://github.com/kylemclaren/terraform-provider-openclaw/tree/main/examples) directory:
+
+- **[basic](https://github.com/kylemclaren/terraform-provider-openclaw/tree/main/examples/basic)** -- Single gateway with WhatsApp and Telegram
+- **[multi-agent](https://github.com/kylemclaren/terraform-provider-openclaw/tree/main/examples/multi-agent)** -- Multiple agents with channel-based routing
+- **[full-stack](https://github.com/kylemclaren/terraform-provider-openclaw/tree/main/examples/full-stack)** -- Every resource type exercised
+
+
+# Provider Configuration
+
+> https://openclaw-tf.vercel.app/docs/provider
+
+## Example Usage
+
+### WebSocket Mode (Recommended)
+
+Connect to a running OpenClaw gateway for live configuration:
+
+```hcl
+provider "openclaw" {
+  gateway_url = "ws://127.0.0.1:18789"
+  token       = var.gateway_token
+}
+```
+
+### File Mode
+
+Manage the config file directly without a running gateway:
+
+```hcl
+provider "openclaw" {
+  config_path = "~/.openclaw/openclaw.json"
+}
+```
+
+### Environment Variables Only
+
+All provider attributes can be set via environment variables, allowing a zero-config provider block:
+
+```hcl
+provider "openclaw" {}
+```
+
+```bash
+export OPENCLAW_GATEWAY_URL="ws://127.0.0.1:18789"
+export OPENCLAW_GATEWAY_TOKEN="your-secret-token"
+terraform apply
+```
+
+## Argument Reference
+
+| Argument | Type | Description | Env Var | Default |
+|----------|------|-------------|---------|---------|
+| `gateway_url` | String | WebSocket URL of the OpenClaw gateway. When set, the provider uses WebSocket mode. | `OPENCLAW_GATEWAY_URL` | -- |
+| `token` | String, Sensitive | Authentication token for the gateway WebSocket API. | `OPENCLAW_GATEWAY_TOKEN` | -- |
+| `config_path` | String | Path to the `openclaw.json` config file. Used when `gateway_url` is not set. | `OPENCLAW_CONFIG_PATH` | `~/.openclaw/openclaw.json` |
+
+## Mode Selection
+
+The provider automatically selects its transport mode:
+
+1. If `gateway_url` is set (or `OPENCLAW_GATEWAY_URL`), **WebSocket mode** is used. The provider connects to the gateway's WS RPC API and applies changes via `config.patch`.
+2. Otherwise, **File mode** is used. The provider reads and writes the JSON config file at `config_path`.
+
+### WebSocket Mode
+
+- Requires a running OpenClaw gateway
+- Changes are applied via the `config.patch` RPC
+- Config reloads happen according to the gateway's `reload_mode` setting
+- The `openclaw_health` data source is only available in this mode
+- Supports authentication via `token`
+
+### File Mode
+
+- No running gateway required
+- Reads and writes `openclaw.json` directly
+- Uses a mutex to safely handle parallel resource operations
+- The `openclaw_health` data source will return an error in this mode
+- Useful for pre-provisioning configs before deploying the gateway
+
+## Authentication
+
+When the gateway has `gateway.auth.mode` set to `"token"`, you must provide the matching token:
+
+```hcl
+variable "gateway_token" {
+  type      = string
+  sensitive = true
+}
+
+provider "openclaw" {
+  gateway_url = "ws://127.0.0.1:18789"
+  token       = var.gateway_token
+}
+```
+
+Or via environment variable:
+
+```bash
+export OPENCLAW_GATEWAY_TOKEN="your-secret-token"
+```
+
+If the gateway has no auth configured (`auth.mode = "none"`), the `token` argument can be omitted.
+
+
+# Basic: Gateway with Two Channels
+
+> https://openclaw-tf.vercel.app/docs/examples/basic
+
+This walkthrough covers the simplest useful OpenClaw deployment — a single gateway with two messaging channels and one default agent. By the end you'll have a working Terraform config that manages your gateway, agent defaults, WhatsApp, and Telegram.
+
+**What you'll configure:**
+- Provider in file mode (no running gateway needed)
+- Gateway on the default port
+- Agent defaults with a primary model and fallback
+- WhatsApp with pairing-based DM policy
+- Telegram with a bot token and streaming
+
+## Prerequisites
+
+- Terraform installed
+- OpenClaw installed (`npm install -g openclaw`)
+- A Telegram bot token (from [@BotFather](https://t.me/BotFather))
+
+## Step 1 — Provider and Gateway
+
+Start with the provider block and required providers. Since we're commenting out `gateway_url`, the provider operates in **file mode** — it reads and writes `~/.openclaw/openclaw.json` directly. This is perfect for initial setup before the gateway is running.
+
+```hcl
+terraform {
+  required_providers {
+    openclaw = {
+      source = "registry.terraform.io/kylemclaren/openclaw"
+    }
+  }
+}
+
+provider "openclaw" {
+  # gateway_url = "ws://127.0.0.1:18789"
+  # token       = var.gateway_token
+}
+```
+
+Next, configure the gateway itself. The `reload_mode = "hybrid"` setting means the gateway will hot-reload most config changes but restart for structural ones.
+
+```hcl
+resource "openclaw_gateway" "main" {
+  port        = 18789
+  bind        = "loopback"
+  reload_mode = "hybrid"
+}
+```
+
+`bind = "loopback"` keeps the gateway listening only on localhost — safe for a personal machine.
+
+## Step 2 — Agent Defaults
+
+Agent defaults apply to every agent unless explicitly overridden. This is where you set your preferred model, timeouts, and sandbox behavior.
+
+```hcl
+resource "openclaw_agent_defaults" "main" {
+  workspace       = "~/.openclaw/workspace"
+  model_primary   = "anthropic/claude-opus-4-6"
+  model_fallbacks = ["openai/gpt-5.2"]
+
+  thinking_default = "low"
+  timeout_seconds  = 600
+  max_concurrent   = 1
+
+  heartbeat_every  = "30m"
+  heartbeat_target = "last"
+
+  sandbox_mode  = "non-main"
+  sandbox_scope = "agent"
+}
+```
+
+Key choices here:
+
+- **`model_fallbacks`** — if the primary model is down or rate-limited, the gateway falls back to this list in order
+- **`heartbeat_every = "30m"`** — the agent sends a keep-alive message every 30 minutes to whichever channel last received a message (`heartbeat_target = "last"`)
+- **`sandbox_mode = "non-main"`** — sandboxes tool execution for all agents except the default one
+
+## Step 3 — WhatsApp Channel
+
+WhatsApp uses a pairing flow — you scan a QR code once and the session persists. The `allow_from` list restricts which phone numbers can interact with your agent.
+
+```hcl
+resource "openclaw_channel_whatsapp" "main" {
+  dm_policy          = "pairing"
+  allow_from         = ["+15555550123"]
+  text_chunk_limit   = 4000
+  send_read_receipts = true
+  group_policy       = "allowlist"
+}
+```
+
+- **`dm_policy = "pairing"`** — new users must pair before chatting (the safest option)
+- **`group_policy = "allowlist"`** — the bot only responds in explicitly allowed groups
+- **`text_chunk_limit = 4000`** — long agent responses are split into 4000-character chunks
+
+## Step 4 — Telegram Channel
+
+Telegram requires a bot token. We store it as a sensitive variable so it doesn't appear in plan output.
+
+```hcl
+variable "telegram_bot_token" {
+  type      = string
+  sensitive = true
+}
+
+resource "openclaw_channel_telegram" "main" {
+  enabled       = true
+  bot_token     = var.telegram_bot_token
+  dm_policy     = "pairing"
+  allow_from    = ["tg:123456789"]
+  stream_mode   = "partial"
+  reply_to_mode = "first"
+}
+```
+
+- **`stream_mode = "partial"`** — the agent streams partial responses as they're generated, giving real-time feedback
+- **`reply_to_mode = "first"`** — replies are threaded to the first message in the conversation
+
+## Step 5 — Verify with a Data Source
+
+Add a data source to confirm the config was written correctly:
+
+```hcl
+data "openclaw_config" "current" {}
+
+output "config_hash" {
+  value = data.openclaw_config.current.hash
+}
+```
+
+## Apply It
+
+```bash
+terraform init
+terraform plan -var="telegram_bot_token=YOUR_TOKEN"
+terraform apply -var="telegram_bot_token=YOUR_TOKEN"
+```
+
+After apply, inspect the generated config:
+
+```bash
+cat ~/.openclaw/openclaw.json | jq .
+```
+
+Then start the gateway:
+
+```bash
+openclaw gateway --port 18789
+```
+
+## Full Source
+
+See [`examples/basic/main.tf`](https://github.com/kylemclaren/terraform-provider-openclaw/blob/main/examples/basic/main.tf) for the complete file.
+
+## Next Steps
+
+- Add more channels — see [Discord](/docs/resources/channel-discord), [Slack](/docs/resources/channel-slack), [Signal](/docs/resources/channel-signal)
+- Set up multiple agents with routing — see [Multi-Agent Example](/docs/examples/multi-agent)
+- Switch to WebSocket mode for live config management — see [Provider Configuration](/docs/provider)
+
+
+# Multi-Agent: Channel-Based Routing
+
+> https://openclaw-tf.vercel.app/docs/examples/multi-agent
+
+This walkthrough demonstrates OpenClaw's multi-agent routing — where WhatsApp messages go to one agent and Telegram messages go to another. Each agent gets its own workspace and can run a different model.
+
+**What you'll configure:**
+- Provider in WebSocket mode (live connection to the gateway)
+- Gateway with token authentication
+- Shared agent defaults
+- WhatsApp as a "personal" channel
+- Telegram as a "work" channel
+- Health check data source
+
+## Why Multi-Agent?
+
+A single agent works fine for personal use, but as your usage grows you might want:
+
+- **Separation of concerns** — a personal assistant on WhatsApp, a coding agent on Telegram
+- **Different models** — use Opus for complex tasks, Sonnet for quick replies
+- **Isolated workspaces** — prevent work files from mixing with personal projects
+- **Per-channel policies** — open DMs on one channel, strict allowlists on another
+
+## Step 1 — Provider with WebSocket Mode
+
+Unlike the basic example, this config connects to a running gateway via WebSocket. Changes are applied immediately via the `config.patch` RPC.
+
+```hcl
+terraform {
+  required_providers {
+    openclaw = {
+      source = "registry.terraform.io/kylemclaren/openclaw"
+    }
+  }
+}
+
+provider "openclaw" {
+  gateway_url = var.gateway_url
+  token       = var.gateway_token
+}
+
+variable "gateway_url" {
+  type    = string
+  default = "ws://127.0.0.1:18789"
+}
+
+variable "gateway_token" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+```
+
+## Step 2 — Gateway with Authentication
+
+When the gateway is reachable over a network (e.g. via Tailscale), you should enable token auth to prevent unauthorized access.
+
+```hcl
+resource "openclaw_gateway" "main" {
+  port        = 18789
+  bind        = "loopback"
+  reload_mode = "hybrid"
+  auth_mode   = "token"
+  auth_token  = var.gateway_token
+}
+```
+
+The `auth_token` here must match the `token` in the provider block. Both are marked sensitive so they never appear in plan output.
+
+## Step 3 — Shared Agent Defaults
+
+These defaults apply to all agents. Individual agents can override any of these values.
+
+```hcl
+resource "openclaw_agent_defaults" "shared" {
+  model_primary    = "anthropic/claude-opus-4-6"
+  timeout_seconds  = 600
+  thinking_default = "low"
+
+  sandbox_mode  = "non-main"
+  sandbox_scope = "agent"
+}
+```
+
+With `sandbox_scope = "agent"`, each agent's sandbox is isolated — one agent can't access another's files.
+
+## Step 4 — Channel Configuration
+
+Set up WhatsApp for personal use with a pairing flow, and Telegram for work with a strict allowlist.
+
+```hcl
+resource "openclaw_channel_whatsapp" "personal" {
+  dm_policy    = "pairing"
+  allow_from   = ["+15555550123"]
+  group_policy = "allowlist"
+}
+```
+
+```hcl
+variable "telegram_bot_token" {
+  type      = string
+  sensitive = true
+}
+
+resource "openclaw_channel_telegram" "work" {
+  enabled       = true
+  bot_token     = var.telegram_bot_token
+  dm_policy     = "allowlist"
+  allow_from    = ["tg:111222333"]
+  stream_mode   = "partial"
+  history_limit = 50
+}
+```
+
+Notice the different DM policies: WhatsApp uses `"pairing"` (scan-to-connect), while Telegram uses `"allowlist"` (only pre-approved user IDs can chat).
+
+## Step 5 — Health Check
+
+Since we're connected via WebSocket, we can use the health data source to verify the gateway is operational:
+
+```hcl
+data "openclaw_health" "gw" {}
+
+output "gateway_status" {
+  value = data.openclaw_health.gw.status
+}
+
+output "gateway_version" {
+  value = data.openclaw_health.gw.version
+}
+```
+
+This is useful as a precondition — if the gateway is down, `terraform plan` will fail early with a clear error instead of timing out.
+
+## Apply It
+
+Start the gateway first (since we're using WebSocket mode):
+
+```bash
+openclaw gateway --port 18789
+```
+
+Then apply:
+
+```bash
+terraform init
+terraform apply \
+  -var="gateway_token=my-secret" \
+  -var="telegram_bot_token=YOUR_TOKEN"
+```
+
+## Full Source
+
+See [`examples/multi-agent/main.tf`](https://github.com/kylemclaren/terraform-provider-openclaw/blob/main/examples/multi-agent/main.tf) for the complete file.
+
+## Next Steps
+
+- Add [bindings](/docs/resources/binding) to route specific channels to specific agents
+- Add Discord with rich action permissions — see [Full-Stack Example](/docs/examples/full-stack)
+- Set up [session](/docs/resources/session) reset policies for clean conversation boundaries
+
+
+# Full-Stack: Every Resource Type
+
+> https://openclaw-tf.vercel.app/docs/examples/full-stack
+
+This walkthrough is the kitchen-sink example — it uses every resource type the provider offers. Use it as a reference for any resource you need, or as a starting point for a production-grade deployment.
+
+**What you'll configure:**
+- Gateway with Tailscale exposure
+- Two agents ("home" and "work") with identity customization
+- Bindings to route channels to agents
+- Five chat channels (WhatsApp, Telegram, Discord, Slack, Signal)
+- Session lifecycle with daily resets
+- Message handling with acknowledgment reactions
+- A plugin, a skill, webhooks, cron, and tools
+
+## Variables
+
+This config uses several sensitive variables for bot tokens and API keys. Define them in a `terraform.tfvars` file or pass them via `-var`:
+
+```hcl
+variable "gateway_token" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "telegram_bot_token" {
+  type      = string
+  sensitive = true
+}
+
+variable "discord_bot_token" {
+  type      = string
+  sensitive = true
+}
+
+variable "slack_bot_token" {
+  type      = string
+  sensitive = true
+}
+
+variable "slack_app_token" {
+  type      = string
+  sensitive = true
+}
+
+variable "gemini_api_key" {
+  type      = string
+  sensitive = true
+}
+```
+
+## Gateway with Tailscale
+
+Expose the gateway over your tailnet with `tailscale_mode = "serve"`. This makes it accessible to other devices on your Tailscale network without opening ports to the public internet.
+
+```hcl
+resource "openclaw_gateway" "main" {
+  port           = 18789
+  bind           = "loopback"
+  reload_mode    = "hybrid"
+  tailscale_mode = "serve"
+}
+```
+
+## Two Agents with Identities
+
+Define a "home" agent (default) and a "work" agent with different models and sandbox settings. The `identity_*` fields control how the agent presents itself in chat.
+
+```hcl
+resource "openclaw_agent" "home" {
+  agent_id      = "home"
+  default_agent = true
+  name          = "Molty"
+  workspace     = "~/.openclaw/workspace-home"
+  model         = "anthropic/claude-opus-4-6"
+
+  identity_name  = "Molty"
+  identity_emoji = "\ud83e\udd9e"
+  identity_theme = "helpful space lobster"
+
+  mention_patterns = ["@openclaw", "molty"]
+}
+
+resource "openclaw_agent" "work" {
+  agent_id  = "work"
+  name      = "Work Agent"
+  workspace = "~/.openclaw/workspace-work"
+  model     = "anthropic/claude-sonnet-4-5"
+
+  sandbox_mode  = "all"
+  sandbox_scope = "session"
+
+  tools_profile = "coding"
+  tools_deny    = ["canvas"]
+}
+```
+
+Key differences:
+
+| | Home Agent | Work Agent |
+|---|---|---|
+| **Model** | Opus (max capability) | Sonnet (fast + capable) |
+| **Sandbox** | `non-main` (inherited) | `all` (everything sandboxed) |
+| **Tools** | Default profile | `coding` profile, canvas denied |
+| **Identity** | Custom name + emoji | Plain |
+
+## Agent Routing with Bindings
+
+Bindings connect channels to agents. Here, WhatsApp goes to the home agent and Telegram goes to the work agent:
+
+```hcl
+resource "openclaw_binding" "home_wa" {
+  agent_id         = openclaw_agent.home.agent_id
+  match_channel    = "whatsapp"
+  match_account_id = "personal"
+}
+
+resource "openclaw_binding" "work_tg" {
+  agent_id      = openclaw_agent.work.agent_id
+  match_channel = "telegram"
+}
+```
+
+Notice how `agent_id` references the agent resource directly — Terraform handles the dependency ordering automatically.
+
+## Five Channels
+
+### WhatsApp and Telegram
+
+```hcl
+resource "openclaw_channel_whatsapp" "main" {
+  dm_policy          = "pairing"
+  allow_from         = ["+15555550123"]
+  send_read_receipts = true
+  group_policy       = "allowlist"
+}
+
+resource "openclaw_channel_telegram" "main" {
+  enabled       = true
+  bot_token     = var.telegram_bot_token
+  dm_policy     = "pairing"
+  allow_from    = ["tg:123456789"]
+  stream_mode   = "partial"
+  reply_to_mode = "first"
+  history_limit = 50
+}
+```
+
+### Discord with Actions
+
+Discord supports granular action permissions — reactions, threads, pins, and search can each be toggled independently:
+
+```hcl
+resource "openclaw_channel_discord" "main" {
+  enabled        = true
+  token          = var.discord_bot_token
+  dm_policy      = "pairing"
+  allow_from     = ["steipete", "1234567890123"]
+  history_limit  = 20
+  reply_to_mode  = "off"
+
+  actions_reactions = true
+  actions_messages  = true
+  actions_threads   = true
+  actions_pins      = true
+  actions_search    = true
+}
+```
+
+### Slack (Socket Mode)
+
+Slack requires both a bot token and an app token for Socket Mode:
+
+```hcl
+resource "openclaw_channel_slack" "main" {
+  enabled        = true
+  bot_token      = var.slack_bot_token
+  app_token      = var.slack_app_token
+  dm_policy      = "pairing"
+  allow_from     = ["U123", "U456"]
+  history_limit  = 50
+  reply_to_mode  = "off"
+  reaction_notifications = "own"
+}
+```
+
+### Signal
+
+```hcl
+resource "openclaw_channel_signal" "main" {
+  enabled                = true
+  dm_policy              = "pairing"
+  reaction_notifications = "own"
+  history_limit          = 50
+}
+```
+
+## Session Lifecycle
+
+Control when conversations reset. Daily resets at 4 AM keep context fresh, and users can trigger a reset manually with `/new` or `/reset`:
+
+```hcl
+resource "openclaw_session" "config" {
+  dm_scope           = "per-channel-peer"
+  reset_mode         = "daily"
+  reset_at_hour      = 4
+  reset_idle_minutes = 120
+  reset_triggers     = ["/new", "/reset"]
+}
+```
+
+`dm_scope = "per-channel-peer"` means each user on each channel gets their own session — your WhatsApp conversation doesn't share context with your Telegram one.
+
+## Message Handling
+
+Configure how the gateway processes messages — acknowledgment reactions, queue behavior, and debounce timing:
+
+```hcl
+resource "openclaw_messages" "config" {
+  response_prefix     = "\ud83e\udd9e"
+  ack_reaction        = "\ud83d\udc40"
+  ack_reaction_scope  = "group-mentions"
+  queue_mode          = "collect"
+  queue_debounce_ms   = 1000
+  queue_cap           = 20
+  inbound_debounce_ms = 2000
+}
+```
+
+- **`ack_reaction`** — the agent reacts with eyes when it starts processing a message
+- **`queue_mode = "collect"`** — if multiple messages arrive quickly, they're collected into a single agent prompt
+- **`inbound_debounce_ms = 2000`** — waits 2 seconds for additional messages before processing
+
+## Automation: Plugins, Skills, Hooks, Cron
+
+### Plugin
+
+```hcl
+resource "openclaw_plugin" "voice_call" {
+  plugin_id = "voice-call"
+  enabled   = true
+  config_json = jsonencode({
+    provider = "twilio"
+  })
+}
+```
+
+### Skill
+
+```hcl
+resource "openclaw_skill" "nano_banana" {
+  skill_name = "nano-banana-pro"
+  enabled    = true
+  api_key    = var.gemini_api_key
+}
+```
+
+### Webhooks
+
+```hcl
+resource "openclaw_hook" "ingress" {
+  enabled             = true
+  token               = "shared-webhook-secret"
+  path                = "/hooks"
+  default_session_key = "hook:ingress"
+}
+```
+
+### Cron
+
+```hcl
+resource "openclaw_cron" "config" {
+  enabled             = true
+  max_concurrent_runs = 2
+  session_retention   = "24h"
+}
+```
+
+## Tool Access Control
+
+Lock down which tools agents can use. The `coding` profile is a sensible preset, and you can layer on specific denials:
+
+```hcl
+resource "openclaw_tools" "config" {
+  profile          = "coding"
+  deny             = ["canvas"]
+  elevated_enabled = true
+  browser_enabled  = true
+}
+```
+
+## Data Sources
+
+Round it out with data sources for verification:
+
+```hcl
+data "openclaw_config" "current" {}
+data "openclaw_health" "gw" {}
+
+output "config_hash" {
+  value = data.openclaw_config.current.hash
+}
+
+output "gateway_version" {
+  value = data.openclaw_health.gw.version
+}
+```
+
+## Apply It
+
+```bash
+terraform init
+terraform apply -var-file="secrets.tfvars"
+```
+
+Where `secrets.tfvars` contains:
+
+```hcl
+telegram_bot_token = "123456:ABC-DEF..."
+discord_bot_token  = "MTIzNDU2..."
+slack_bot_token    = "xoxb-..."
+slack_app_token    = "xapp-..."
+gemini_api_key     = "AIza..."
+```
+
+## Full Source
+
+See [`examples/full-stack/main.tf`](https://github.com/kylemclaren/terraform-provider-openclaw/blob/main/examples/full-stack/main.tf) for the complete file.
+
+
+# openclaw_gateway
+
+> https://openclaw-tf.vercel.app/docs/resources/gateway
+
+Manages the OpenClaw gateway server configuration including port, bind address, authentication, and reload behavior.
+
+This is a singleton resource -- only one `openclaw_gateway` block should exist per configuration.
+
+## Example Usage
+
+```hcl
+resource "openclaw_gateway" "main" {
+  port        = 18789
+  bind        = "loopback"
+  auth_mode   = "token"
+  auth_token  = var.gateway_token
+  reload_mode = "hybrid"
+}
+```
+
+### Expose via Tailscale
+
+```hcl
+resource "openclaw_gateway" "main" {
+  port           = 18789
+  bind           = "all"
+  tailscale_mode = "funnel"
+  auth_mode      = "token"
+  auth_token     = var.gateway_token
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `port` | Int64 | No | `18789` | Gateway listen port. |
+| `bind` | String | No | `"loopback"` | Bind address: `loopback` or `all`. |
+| `auth_mode` | String | No | -- | Authentication mode: `token`, `password`, or `none`. |
+| `auth_token` | String | No | -- | Gateway auth token. **Sensitive.** |
+| `reload_mode` | String | No | `"hybrid"` | Config reload mode: `hybrid`, `hot`, `restart`, or `off`. |
+| `tailscale_mode` | String | No | -- | Tailscale exposure: `off`, `serve`, or `funnel`. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"gateway"`. |
+
+## Import
+
+```bash
+terraform import openclaw_gateway.main gateway
+```
+
+
+# openclaw_agent_defaults
+
+> https://openclaw-tf.vercel.app/docs/resources/agent-defaults
+
+Manages the default configuration applied to all agents unless overridden per-agent. Controls the primary model, workspace, heartbeat behavior, sandbox settings, and execution limits.
+
+This is a singleton resource -- only one `openclaw_agent_defaults` block should exist per configuration.
+
+## Example Usage
+
+```hcl
+resource "openclaw_agent_defaults" "main" {
+  workspace       = "~/.openclaw/workspace"
+  model_primary   = "anthropic/claude-sonnet-4-20250514"
+  model_fallbacks = ["openai/gpt-4.1"]
+
+  thinking_default = "low"
+  timeout_seconds  = 600
+  max_concurrent   = 2
+  user_timezone    = "America/New_York"
+
+  heartbeat_every  = "30m"
+  heartbeat_target = "last"
+
+  sandbox_mode  = "non-main"
+  sandbox_scope = "agent"
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `workspace` | String | No | `"~/.openclaw/workspace"` | Default workspace path for agents. |
+| `model_primary` | String | No | -- | Primary model in `provider/model` format. |
+| `model_fallbacks` | List(String) | No | -- | Ordered fallback model list. |
+| `thinking_default` | String | No | -- | Thinking level: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`. |
+| `verbose_default` | String | No | -- | Verbose output: `on` or `off`. |
+| `timeout_seconds` | Int64 | No | `600` | Agent run timeout in seconds. |
+| `max_concurrent` | Int64 | No | `1` | Max parallel agent runs across all sessions. |
+| `user_timezone` | String | No | -- | Timezone for system prompt context (e.g. `America/Chicago`). |
+| `heartbeat_every` | String | No | -- | Heartbeat interval (e.g. `30m`, `2h`). Set to `0m` to disable. |
+| `heartbeat_target` | String | No | -- | Heartbeat delivery target: `last`, `whatsapp`, `telegram`, `discord`, `none`. |
+| `sandbox_mode` | String | No | -- | Sandbox mode: `off`, `non-main`, `all`. |
+| `sandbox_scope` | String | No | -- | Sandbox scope: `session`, `agent`, `shared`. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"agent_defaults"`. |
+
+## Import
+
+```bash
+terraform import openclaw_agent_defaults.main agent_defaults
+```
+
+
+# openclaw_agent
+
+> https://openclaw-tf.vercel.app/docs/resources/agent
+
+Manages an individual agent entry in `agents.list[]`. Use this to define multiple agents with different models, identities, tools, and sandbox settings. Pair with [`openclaw_binding`](/docs/resources/binding) to route channels to specific agents.
+
+## Example Usage
+
+```hcl
+resource "openclaw_agent" "research" {
+  agent_id      = "research"
+  name          = "Research Agent"
+  default_agent = false
+  model         = "openai/gpt-4.1"
+  workspace     = "~/.openclaw/workspace-research"
+
+  identity_name  = "Researcher"
+  identity_emoji = "\ud83d\udd2c"
+
+  mention_patterns = ["@research", "@researcher"]
+
+  sandbox_mode = "all"
+  sandbox_scope = "agent"
+}
+
+resource "openclaw_agent" "coding" {
+  agent_id      = "coding"
+  name          = "Coding Agent"
+  default_agent = true
+  model         = "anthropic/claude-sonnet-4-20250514"
+
+  tools_profile = "coding"
+  tools_allow   = ["bash", "read", "write", "glob", "grep"]
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `agent_id` | String | **Yes** | Stable identifier for the agent. Maps to `id` in config. |
+| `default_agent` | Bool | No | Whether this is the default agent. |
+| `name` | String | No | Display name. |
+| `workspace` | String | No | Workspace path override. |
+| `model` | String | No | Model override (e.g. `anthropic/claude-opus-4-6`). |
+| `identity_name` | String | No | Identity display name. |
+| `identity_emoji` | String | No | Identity emoji. |
+| `identity_theme` | String | No | Identity theme color. |
+| `mention_patterns` | List(String) | No | Patterns that mention this agent in group chats. |
+| `sandbox_mode` | String | No | Sandbox mode: `off`, `non-main`, `all`. |
+| `sandbox_scope` | String | No | Sandbox scope: `session`, `agent`, `shared`. |
+| `tools_profile` | String | No | Tools profile name. |
+| `tools_allow` | List(String) | No | Allowed tool names. |
+| `tools_deny` | List(String) | No | Denied tool names. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Same as `agent_id`. |
+
+## Import
+
+```bash
+terraform import openclaw_agent.research research
+```
+
+
+# openclaw_binding
+
+> https://openclaw-tf.vercel.app/docs/resources/binding
+
+Manages an individual binding entry in `bindings[]`. Bindings route incoming messages from specific channels or peers to specific agents. This enables multi-agent setups where different channels talk to different agents.
+
+## Example Usage
+
+### Route Discord to a specific agent
+
+```hcl
+resource "openclaw_binding" "discord_research" {
+  agent_id      = "research"
+  match_channel = "discord"
+}
+```
+
+### Route a specific Telegram user to an agent
+
+```hcl
+resource "openclaw_binding" "telegram_vip" {
+  agent_id         = "coding"
+  match_channel    = "telegram"
+  match_account_id = "tg:123456789"
+}
+```
+
+### Route DMs vs groups differently
+
+```hcl
+resource "openclaw_binding" "whatsapp_dm" {
+  agent_id        = "personal"
+  match_channel   = "whatsapp"
+  match_peer_kind = "dm"
+}
+
+resource "openclaw_binding" "whatsapp_group" {
+  agent_id        = "team"
+  match_channel   = "whatsapp"
+  match_peer_kind = "group"
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `agent_id` | String | **Yes** | Agent ID this binding routes to. |
+| `match_channel` | String | **Yes** | Channel to match (e.g. `discord`, `telegram`, `whatsapp`). |
+| `match_account_id` | String | No | Account ID to match. |
+| `match_peer_kind` | String | No | Peer kind: `dm` or `group`. |
+| `match_peer_id` | String | No | Specific peer ID to match. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Composite key: `agentId/channel` or `agentId/channel/accountId`. |
+
+## Import
+
+```bash
+terraform import openclaw_binding.discord_research "research/discord"
+terraform import openclaw_binding.telegram_vip "coding/telegram/tg:123456789"
+```
+
+
+# openclaw_session
+
+> https://openclaw-tf.vercel.app/docs/resources/session
+
+Manages the session lifecycle configuration including scope, reset policy, and custom triggers.
+
+This is a singleton resource.
+
+## Example Usage
+
+```hcl
+resource "openclaw_session" "main" {
+  dm_scope           = "per-peer"
+  reset_mode         = "idle"
+  reset_idle_minutes = 60
+}
+```
+
+### Daily reset with custom triggers
+
+```hcl
+resource "openclaw_session" "main" {
+  dm_scope       = "per-channel-peer"
+  reset_mode     = "daily"
+  reset_at_hour  = 3
+  reset_triggers = ["/reset", "/new"]
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `dm_scope` | String | No | DM session scope: `main`, `per-peer`, `per-channel-peer`, `per-account-channel-peer`. |
+| `reset_mode` | String | No | Reset mode: `daily` or `idle`. |
+| `reset_at_hour` | Int64 | No | Hour of day (0-23) to reset sessions (for `daily` mode). |
+| `reset_idle_minutes` | Int64 | No | Minutes of inactivity before reset (for `idle` mode). |
+| `reset_triggers` | List(String) | No | Custom trigger phrases that reset the session. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"session"`. |
+
+## Import
+
+```bash
+terraform import openclaw_session.main session
+```
+
+
+# openclaw_messages
+
+> https://openclaw-tf.vercel.app/docs/resources/messages
+
+Manages how the gateway handles inbound and outbound messages, including queue behavior, debounce timing, and acknowledgment reactions.
+
+This is a singleton resource.
+
+## Example Usage
+
+```hcl
+resource "openclaw_messages" "main" {
+  response_prefix    = "[Bot] "
+  ack_reaction       = "eyes"
+  ack_reaction_scope = "all"
+  queue_mode         = "steer"
+  queue_debounce_ms  = 1500
+  queue_cap          = 30
+  inbound_debounce_ms = 3000
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `response_prefix` | String | No | -- | Prefix prepended to every agent response. |
+| `ack_reaction` | String | No | -- | Emoji reaction to acknowledge message receipt. |
+| `ack_reaction_scope` | String | No | -- | Scope for ack reactions: `group-mentions`, `group-all`, `direct`, `all`. |
+| `queue_mode` | String | No | -- | Queue mode: `steer`, `followup`, `collect`, `steer-backlog`, `queue`, `interrupt`. |
+| `queue_debounce_ms` | Int64 | No | `1000` | Queue debounce in milliseconds. |
+| `queue_cap` | Int64 | No | `20` | Maximum queued messages. |
+| `inbound_debounce_ms` | Int64 | No | `2000` | Inbound message debounce in milliseconds. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"messages"`. |
+
+## Import
+
+```bash
+terraform import openclaw_messages.main messages
+```
+
+
+# openclaw_channel_whatsapp
+
+> https://openclaw-tf.vercel.app/docs/resources/channel-whatsapp
+
+Manages the WhatsApp channel configuration including DM policy, allowlists, message chunking, and group settings.
+
+This is a singleton resource -- OpenClaw supports one WhatsApp account per gateway.
+
+## Example Usage
+
+```hcl
+resource "openclaw_channel_whatsapp" "main" {
+  dm_policy          = "pairing"
+  allow_from         = ["+15555550123", "+15555550456"]
+  text_chunk_limit   = 4000
+  send_read_receipts = true
+  group_policy       = "allowlist"
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `dm_policy` | String | No | `"pairing"` | DM policy: `pairing`, `allowlist`, `open`, `disabled`. |
+| `allow_from` | List(String) | No | -- | Phone numbers allowed to message (e.g. `+15555550123`). |
+| `text_chunk_limit` | Int64 | No | `4000` | Max characters per outbound message chunk. |
+| `chunk_mode` | String | No | `"length"` | Chunk splitting: `length` or `newline`. |
+| `media_max_mb` | Int64 | No | `50` | Max inbound media size in MB. |
+| `send_read_receipts` | Bool | No | `true` | Send read receipts (blue ticks). |
+| `group_policy` | String | No | `"allowlist"` | Group policy: `allowlist`, `open`, `disabled`. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channel_whatsapp"`. |
+
+## Import
+
+```bash
+terraform import openclaw_channel_whatsapp.main channel_whatsapp
+```
+
+
+# openclaw_channel_telegram
+
+> https://openclaw-tf.vercel.app/docs/resources/channel-telegram
+
+Manages the Telegram channel configuration including bot token, DM policy, streaming, and webhook settings.
+
+## Example Usage
+
+```hcl
+resource "openclaw_channel_telegram" "main" {
+  enabled       = true
+  bot_token     = var.telegram_bot_token
+  dm_policy     = "allowlist"
+  allow_from    = ["tg:123456789"]
+  stream_mode   = "partial"
+  reply_to_mode = "first"
+  history_limit = 50
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable the Telegram channel. |
+| `bot_token` | String | No | -- | Telegram bot token. **Sensitive.** Falls back to `TELEGRAM_BOT_TOKEN` env var. |
+| `dm_policy` | String | No | `"pairing"` | DM policy: `pairing`, `allowlist`, `open`, `disabled`. |
+| `allow_from` | List(String) | No | -- | Allowed Telegram user IDs (e.g. `tg:123456789`). |
+| `stream_mode` | String | No | -- | Stream preview: `off`, `partial`, `block`. |
+| `reply_to_mode` | String | No | -- | Reply-to behavior: `off`, `first`, `all`. |
+| `link_preview` | Bool | No | -- | Enable link previews in outbound messages. |
+| `history_limit` | Int64 | No | -- | Max chat history messages to fetch for context. |
+| `media_max_mb` | Int64 | No | -- | Max inbound media size in MB. |
+| `webhook_url` | String | No | -- | Webhook URL for Telegram webhook mode. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channel_telegram"`. |
+
+## Import
+
+```bash
+terraform import openclaw_channel_telegram.main channel_telegram
+```
+
+
+# openclaw_channel_discord
+
+> https://openclaw-tf.vercel.app/docs/resources/channel-discord
+
+Manages the Discord channel configuration including bot token, DM policy, message chunking, and action permissions (reactions, threads, pins, search).
+
+## Example Usage
+
+```hcl
+resource "openclaw_channel_discord" "main" {
+  enabled          = true
+  token            = var.discord_bot_token
+  dm_policy        = "allowlist"
+  allow_from       = ["user123", "user456"]
+  text_chunk_limit = 2000
+  history_limit    = 30
+  reply_to_mode    = "first"
+
+  actions_reactions = true
+  actions_messages  = true
+  actions_threads   = true
+  actions_pins      = false
+  actions_search    = true
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable the Discord channel. |
+| `token` | String | No | -- | Discord bot token. **Sensitive.** Falls back to `DISCORD_BOT_TOKEN`. |
+| `dm_policy` | String | No | `"pairing"` | DM policy: `pairing`, `allowlist`, `open`, `disabled`. |
+| `allow_from` | List(String) | No | -- | Allowed Discord user IDs or usernames. |
+| `allow_bots` | Bool | No | `false` | Allow messages from other bots. |
+| `media_max_mb` | Int64 | No | `8` | Max inbound media size in MB. |
+| `text_chunk_limit` | Int64 | No | `2000` | Max characters per outbound message chunk. |
+| `chunk_mode` | String | No | `"length"` | Chunk splitting: `length` or `newline`. |
+| `history_limit` | Int64 | No | `20` | Max chat history messages to fetch. |
+| `reply_to_mode` | String | No | `"off"` | Reply-to behavior: `off`, `first`, `all`. |
+| `actions_reactions` | Bool | No | -- | Enable reaction actions. |
+| `actions_messages` | Bool | No | -- | Enable message actions (read/send/edit/delete). |
+| `actions_threads` | Bool | No | -- | Enable thread actions. |
+| `actions_pins` | Bool | No | -- | Enable pin actions. |
+| `actions_search` | Bool | No | -- | Enable search actions. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channel_discord"`. |
+
+## Import
+
+```bash
+terraform import openclaw_channel_discord.main channel_discord
+```
+
+
+# openclaw_channel_slack
+
+> https://openclaw-tf.vercel.app/docs/resources/channel-slack
+
+Manages the Slack channel configuration. Requires both a bot token (`xoxb-...`) and an app token (`xapp-...`) for Socket Mode.
+
+## Example Usage
+
+```hcl
+resource "openclaw_channel_slack" "main" {
+  enabled    = true
+  bot_token  = var.slack_bot_token
+  app_token  = var.slack_app_token
+  dm_policy  = "allowlist"
+  allow_from = ["U0123456789"]
+
+  history_limit          = 50
+  text_chunk_limit       = 4000
+  reaction_notifications = "own"
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable the Slack channel. |
+| `bot_token` | String | No | -- | Slack bot token (`xoxb-...`). **Sensitive.** Falls back to `SLACK_BOT_TOKEN`. |
+| `app_token` | String | No | -- | Slack app token (`xapp-...`). **Sensitive.** Falls back to `SLACK_APP_TOKEN`. |
+| `dm_policy` | String | No | `"pairing"` | DM policy: `pairing`, `allowlist`, `open`, `disabled`. |
+| `allow_from` | List(String) | No | -- | Allowed Slack user IDs. |
+| `allow_bots` | Bool | No | `false` | Allow messages from other bots. |
+| `history_limit` | Int64 | No | `50` | Max chat history messages. |
+| `text_chunk_limit` | Int64 | No | `4000` | Max characters per chunk. |
+| `chunk_mode` | String | No | `"length"` | Chunk mode: `length` or `newline`. |
+| `media_max_mb` | Int64 | No | `20` | Max inbound media size in MB. |
+| `reply_to_mode` | String | No | `"off"` | Reply-to behavior: `off`, `first`, `all`. |
+| `reaction_notifications` | String | No | `"own"` | Reaction notifications: `off`, `own`, `all`, `allowlist`. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channel_slack"`. |
+
+## Import
+
+```bash
+terraform import openclaw_channel_slack.main channel_slack
+```
+
+
+# openclaw_channel_signal
+
+> https://openclaw-tf.vercel.app/docs/resources/channel-signal
+
+Manages the Signal channel configuration.
+
+## Example Usage
+
+```hcl
+resource "openclaw_channel_signal" "main" {
+  enabled                = true
+  dm_policy              = "allowlist"
+  allow_from             = ["+15555550123"]
+  reaction_notifications = "own"
+  history_limit          = 50
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable the Signal channel. |
+| `dm_policy` | String | No | `"pairing"` | DM policy: `pairing`, `allowlist`, `open`, `disabled`. |
+| `allow_from` | List(String) | No | -- | Phone numbers or identifiers allowed to message. |
+| `reaction_notifications` | String | No | `"own"` | Reaction notifications: `own`, `all`, `none`. |
+| `history_limit` | Int64 | No | `50` | Max chat history messages to fetch. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channel_signal"`. |
+
+## Import
+
+```bash
+terraform import openclaw_channel_signal.main channel_signal
+```
+
+
+# openclaw_channel_imessage
+
+> https://openclaw-tf.vercel.app/docs/resources/channel-imessage
+
+Manages the iMessage channel configuration. Requires macOS with iMessage configured.
+
+## Example Usage
+
+```hcl
+resource "openclaw_channel_imessage" "main" {
+  enabled      = true
+  dm_policy    = "allowlist"
+  allow_from   = ["+15555550123"]
+  media_max_mb = 16
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable the iMessage channel. |
+| `dm_policy` | String | No | `"pairing"` | DM policy: `pairing`, `allowlist`, `open`, `disabled`. |
+| `allow_from` | List(String) | No | -- | Phone numbers or identifiers allowed to message. |
+| `history_limit` | Int64 | No | `50` | Max chat history messages to fetch. |
+| `media_max_mb` | Int64 | No | `16` | Max inbound media size in MB. |
+| `service` | String | No | -- | iMessage service selection. Defaults to auto. |
+| `region` | String | No | -- | Region for the iMessage channel. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channel_imessage"`. |
+
+## Import
+
+```bash
+terraform import openclaw_channel_imessage.main channel_imessage
+```
+
+
+# openclaw_channel_googlechat
+
+> https://openclaw-tf.vercel.app/docs/resources/channel-googlechat
+
+Manages the Google Chat channel configuration including webhook path, bot user, and group policy.
+
+## Example Usage
+
+```hcl
+resource "openclaw_channel_googlechat" "main" {
+  enabled      = true
+  webhook_path = "/hooks/gchat"
+  dm_policy    = "allowlist"
+  dm_allow_from = ["user@company.com"]
+  group_policy = "open"
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable the Google Chat channel. |
+| `webhook_path` | String | No | -- | Webhook path for incoming messages. |
+| `bot_user` | String | No | -- | Bot user identifier. |
+| `dm_policy` | String | No | `"pairing"` | DM policy: `pairing`, `allowlist`, `open`, `disabled`. |
+| `dm_allow_from` | List(String) | No | -- | User identifiers allowed to send DMs. |
+| `group_policy` | String | No | `"allowlist"` | Group policy: `allowlist`, `open`, `disabled`. |
+| `media_max_mb` | Int64 | No | `20` | Max inbound media size in MB. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channel_googlechat"`. |
+
+## Import
+
+```bash
+terraform import openclaw_channel_googlechat.main channel_googlechat
+```
+
+
+# openclaw_plugin
+
+> https://openclaw-tf.vercel.app/docs/resources/plugin
+
+Manages a plugin entry under `plugins.entries.<id>`. Plugins extend gateway functionality with custom behavior.
+
+Changing `plugin_id` forces resource replacement.
+
+## Example Usage
+
+```hcl
+resource "openclaw_plugin" "web_search" {
+  plugin_id = "web_search"
+  enabled   = true
+  config_json = jsonencode({
+    engine     = "google"
+    max_results = 10
+  })
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `plugin_id` | String | **Yes** | Unique plugin identifier. Used as the key under `plugins.entries`. Changing this forces replacement. |
+| `enabled` | Bool | No | Enable or disable this plugin. |
+| `config_json` | String | No | Raw JSON string with plugin-specific configuration. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Same as `plugin_id`. |
+
+## Import
+
+```bash
+terraform import openclaw_plugin.web_search web_search
+```
+
+
+# openclaw_skill
+
+> https://openclaw-tf.vercel.app/docs/resources/skill
+
+Manages a skill entry under `skills.entries.<name>`. Skills are executable capabilities that agents can invoke.
+
+Changing `skill_name` forces resource replacement.
+
+## Example Usage
+
+```hcl
+resource "openclaw_skill" "calculator" {
+  skill_name = "calculator"
+  enabled    = true
+  api_key    = var.calculator_api_key
+  env_json = jsonencode({
+    PRECISION = "high"
+    MAX_DEPTH = "10"
+  })
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `skill_name` | String | **Yes** | Unique skill name. Used as the key under `skills.entries`. Changing this forces replacement. |
+| `enabled` | Bool | No | Enable or disable this skill. |
+| `api_key` | String | No | API key for the skill. **Sensitive.** |
+| `env_json` | String | No | JSON object of environment variables to inject into the skill. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Same as `skill_name`. |
+
+## Import
+
+```bash
+terraform import openclaw_skill.calculator calculator
+```
+
+
+# openclaw_hook
+
+> https://openclaw-tf.vercel.app/docs/resources/hook
+
+Manages the webhook (hooks) configuration. Webhooks allow external systems to trigger agent actions via HTTP.
+
+This is a singleton resource.
+
+## Example Usage
+
+```hcl
+resource "openclaw_hook" "main" {
+  enabled             = true
+  token               = var.hook_token
+  path                = "/hooks"
+  default_session_key = "webhook-session"
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable hooks. |
+| `token` | String | No | -- | Authentication token for hooks. **Sensitive.** |
+| `path` | String | No | `"/hooks"` | URL path prefix for hooks. |
+| `default_session_key` | String | No | -- | Default session key when none is specified in the hook request. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"hook"`. |
+
+## Import
+
+```bash
+terraform import openclaw_hook.main hook
+```
+
+
+# openclaw_cron
+
+> https://openclaw-tf.vercel.app/docs/resources/cron
+
+Manages the cron job configuration including concurrency limits and session retention.
+
+This is a singleton resource.
+
+## Example Usage
+
+```hcl
+resource "openclaw_cron" "main" {
+  enabled             = true
+  max_concurrent_runs = 3
+  session_retention   = "48h"
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable cron jobs. |
+| `max_concurrent_runs` | Int64 | No | `2` | Maximum number of concurrent cron runs. |
+| `session_retention` | String | No | `"24h"` | How long to retain cron session data (e.g. `24h`, `7d`). |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"cron"`. |
+
+## Import
+
+```bash
+terraform import openclaw_cron.main cron
+```
+
+
+# openclaw_tools
+
+> https://openclaw-tf.vercel.app/docs/resources/tools
+
+Manages tool access control including profiles, allow/deny lists, and elevated/browser tool toggles.
+
+This is a singleton resource.
+
+## Example Usage
+
+### Use a preset profile
+
+```hcl
+resource "openclaw_tools" "main" {
+  profile         = "coding"
+  elevated_enabled = false
+  browser_enabled  = true
+}
+```
+
+### Fine-grained allow/deny lists
+
+```hcl
+resource "openclaw_tools" "main" {
+  allow = ["bash", "read", "write", "glob", "grep", "edit"]
+  deny  = ["rm", "curl"]
+
+  elevated_enabled = false
+  browser_enabled  = false
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `profile` | String | No | Tools profile: `minimal`, `coding`, `messaging`, or `full`. |
+| `allow` | List(String) | No | Explicit list of tool names to allow. |
+| `deny` | List(String) | No | Explicit list of tool names to deny. |
+| `elevated_enabled` | Bool | No | Enable elevated (privileged) tool execution. |
+| `browser_enabled` | Bool | No | Enable browser-based tools. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"tools"`. |
+
+## Import
+
+```bash
+terraform import openclaw_tools.main tools
+```
+
+
+# openclaw_config (Data Source)
+
+> https://openclaw-tf.vercel.app/docs/data-sources/config
+
+Reads the full current OpenClaw configuration as a raw JSON string with an opaque hash for change detection. Works in both WebSocket and file modes.
+
+## Example Usage
+
+```hcl
+data "openclaw_config" "current" {}
+
+output "config_hash" {
+  value = data.openclaw_config.current.hash
+}
+
+output "raw_config" {
+  value = data.openclaw_config.current.raw
+}
+```
+
+### Use with `jsondecode` for conditional logic
+
+```hcl
+data "openclaw_config" "current" {}
+
+locals {
+  config = jsondecode(data.openclaw_config.current.raw)
+  has_whatsapp = try(local.config.channels.whatsapp, null) != null
+}
+```
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"config"`. |
+| `raw` | String | The full JSON config string. |
+| `hash` | String | Opaque hash of the config. Changes when the config changes. |
+
+
+# openclaw_health (Data Source)
+
+> https://openclaw-tf.vercel.app/docs/data-sources/health
+
+Reads the health status of a running OpenClaw gateway. **Requires WebSocket mode** -- will return an error in file mode.
+
+## Example Usage
+
+```hcl
+data "openclaw_health" "gw" {}
+
+output "gateway_ok" {
+  value = data.openclaw_health.gw.ok
+}
+
+output "default_agent" {
+  value = data.openclaw_health.gw.default_agent_id
+}
+```
+
+### Use as a precondition
+
+```hcl
+data "openclaw_health" "gw" {}
+
+resource "openclaw_gateway" "main" {
+  port = 18789
+
+  lifecycle {
+    precondition {
+      condition     = data.openclaw_health.gw.ok
+      error_message = "Gateway health check failed."
+    }
+  }
+}
+```
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"health"`. |
+| `ok` | Bool | Whether the gateway health check passed. |
+| `timestamp` | Int64 | Server timestamp (Unix milliseconds) when health was checked. |
+| `default_agent_id` | String | The default agent ID configured on the gateway. |
+| `heartbeat_seconds` | Int64 | Heartbeat interval in seconds. |
+
+
+# openclaw_gateway (Data Source)
+
+> https://openclaw-tf.vercel.app/docs/data-sources/gateway
+
+Reads the current gateway server configuration without managing it. Useful for cross-stack references where one Terraform config manages the gateway and another reads from it.
+
+## Example Usage
+
+```hcl
+data "openclaw_gateway" "current" {}
+
+output "gateway_port" {
+  value = data.openclaw_gateway.current.port
+}
+
+output "auth_enabled" {
+  value = data.openclaw_gateway.current.auth_mode != "none"
+}
+```
+
+### Conditional logic based on gateway config
+
+```hcl
+data "openclaw_gateway" "current" {}
+
+resource "openclaw_channel_whatsapp" "main" {
+  # Only enable if gateway is bound to all interfaces
+  count     = data.openclaw_gateway.current.bind == "all" ? 1 : 0
+  dm_policy = "pairing"
+}
+```
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"gateway"`. |
+| `port` | Int64 | Gateway listen port. |
+| `bind` | String | Bind address: `loopback` or `all`. |
+| `auth_mode` | String | Authentication mode: `token`, `password`, or `none`. |
+| `reload_mode` | String | Config reload mode: `hybrid`, `hot`, `restart`, or `off`. |
+| `tailscale_mode` | String | Tailscale exposure mode: `off`, `serve`, or `funnel`. |
+| `mode` | String | Gateway mode (e.g. `local`). |
+
+
+# openclaw_agent_defaults (Data Source)
+
+> https://openclaw-tf.vercel.app/docs/data-sources/agent-defaults
+
+Reads the current agent default configuration without managing it. Useful for inspecting what model, timeouts, and sandbox settings are active.
+
+## Example Usage
+
+```hcl
+data "openclaw_agent_defaults" "current" {}
+
+output "primary_model" {
+  value = data.openclaw_agent_defaults.current.model_primary
+}
+
+output "timeout" {
+  value = data.openclaw_agent_defaults.current.timeout_seconds
+}
+```
+
+### Reference in other resources
+
+```hcl
+data "openclaw_agent_defaults" "current" {}
+
+resource "openclaw_agent" "fast" {
+  agent_id = "fast"
+  name     = "Fast Agent"
+  # Use a different model than the default
+  model    = "anthropic/claude-haiku-35"
+  # But inherit the same workspace via the data source
+  workspace = data.openclaw_agent_defaults.current.workspace
+}
+```
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"agent_defaults"`. |
+| `workspace` | String | Default agent workspace path. |
+| `model_primary` | String | Primary model in `provider/model` format. |
+| `thinking_default` | String | Default thinking level. |
+| `timeout_seconds` | Int64 | Agent run timeout in seconds. |
+| `max_concurrent` | Int64 | Max parallel agent runs across sessions. |
+| `user_timezone` | String | Timezone for system prompt context. |
+| `heartbeat_every` | String | Heartbeat interval duration string. |
+| `heartbeat_target` | String | Heartbeat delivery target. |
+| `sandbox_mode` | String | Sandbox mode: `off`, `non-main`, `all`. |
+| `sandbox_scope` | String | Sandbox scope: `session`, `agent`, `shared`. |
+
+
+# openclaw_agents (Data Source)
+
+> https://openclaw-tf.vercel.app/docs/data-sources/agents
+
+Lists all configured agents with their settings. Returns both a flat list of agent IDs and a structured list with per-agent details.
+
+## Example Usage
+
+```hcl
+data "openclaw_agents" "all" {}
+
+output "agent_count" {
+  value = length(data.openclaw_agents.all.agent_ids)
+}
+
+output "default_agent" {
+  value = data.openclaw_agents.all.default_agent_id
+}
+
+output "agent_ids" {
+  value = data.openclaw_agents.all.agent_ids
+}
+```
+
+### Create bindings for each agent
+
+```hcl
+data "openclaw_agents" "all" {}
+
+resource "openclaw_binding" "telegram" {
+  for_each      = toset(data.openclaw_agents.all.agent_ids)
+  agent_id      = each.value
+  match_channel = "telegram"
+}
+```
+
+### Check if a specific agent exists
+
+```hcl
+data "openclaw_agents" "all" {}
+
+locals {
+  has_research_agent = contains(data.openclaw_agents.all.agent_ids, "research")
+}
+```
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"agents"`. |
+| `default_agent_id` | String | The agent ID marked as default. |
+| `agent_ids` | List(String) | List of all agent IDs. |
+| `agents` | List(Object) | List of agents with their configuration. |
+
+### Nested `agents` Object
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `agent_id` | String | Agent identifier. |
+| `name` | String | Agent display name. |
+| `is_default` | Bool | Whether this is the default agent. |
+| `model` | String | Model assigned to this agent. |
+| `workspace` | String | Workspace path for this agent. |
+| `sandbox_mode` | String | Sandbox mode for this agent. |
+| `tools_profile` | String | Tools profile for this agent. |
+
+
+# openclaw_channels (Data Source)
+
+> https://openclaw-tf.vercel.app/docs/data-sources/channels
+
+Lists all configured channels with summary information. Returns both a flat list of channel names and a structured list with per-channel enabled state and DM policy.
+
+## Example Usage
+
+```hcl
+data "openclaw_channels" "all" {}
+
+output "configured_channels" {
+  value = data.openclaw_channels.all.names
+}
+
+output "channel_count" {
+  value = length(data.openclaw_channels.all.names)
+}
+```
+
+### Check if a specific channel is configured
+
+```hcl
+data "openclaw_channels" "all" {}
+
+locals {
+  has_whatsapp = contains(data.openclaw_channels.all.names, "whatsapp")
+  has_discord  = contains(data.openclaw_channels.all.names, "discord")
+}
+
+resource "openclaw_binding" "whatsapp_main" {
+  count         = local.has_whatsapp ? 1 : 0
+  agent_id      = "main"
+  match_channel = "whatsapp"
+}
+```
+
+### Inspect channel details
+
+```hcl
+data "openclaw_channels" "all" {}
+
+output "channels" {
+  value = {
+    for ch in data.openclaw_channels.all.channels :
+    ch.name => {
+      enabled   = ch.enabled
+      dm_policy = ch.dm_policy
+    }
+  }
+}
+```
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channels"`. |
+| `names` | List(String) | List of configured channel names (e.g. `whatsapp`, `telegram`, `discord`). |
+| `channels` | List(Object) | List of channels with summary configuration. |
+
+### Nested `channels` Object
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `name` | String | Channel name (e.g. `whatsapp`, `telegram`, `discord`, `slack`, `signal`, `imessage`, `googlechat`). |
+| `enabled` | Bool | Whether the channel is enabled. Channels without an explicit `enabled` field are considered enabled if configured. |
+| `dm_policy` | String | DM policy for this channel. |

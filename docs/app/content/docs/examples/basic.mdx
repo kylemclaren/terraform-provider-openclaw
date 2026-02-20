@@ -1,0 +1,162 @@
+---
+title: "Basic: Gateway with Two Channels"
+description: A minimal setup with WhatsApp, Telegram, and sensible defaults.
+icon: Rocket
+---
+
+This walkthrough covers the simplest useful OpenClaw deployment — a single gateway with two messaging channels and one default agent. By the end you'll have a working Terraform config that manages your gateway, agent defaults, WhatsApp, and Telegram.
+
+**What you'll configure:**
+- Provider in file mode (no running gateway needed)
+- Gateway on the default port
+- Agent defaults with a primary model and fallback
+- WhatsApp with pairing-based DM policy
+- Telegram with a bot token and streaming
+
+## Prerequisites
+
+- Terraform installed
+- OpenClaw installed (`npm install -g openclaw`)
+- A Telegram bot token (from [@BotFather](https://t.me/BotFather))
+
+## Step 1 — Provider and Gateway
+
+Start with the provider block and required providers. Since we're commenting out `gateway_url`, the provider operates in **file mode** — it reads and writes `~/.openclaw/openclaw.json` directly. This is perfect for initial setup before the gateway is running.
+
+```hcl
+terraform {
+  required_providers {
+    openclaw = {
+      source = "registry.terraform.io/kylemclaren/openclaw"
+    }
+  }
+}
+
+provider "openclaw" {
+  # gateway_url = "ws://127.0.0.1:18789"
+  # token       = var.gateway_token
+}
+```
+
+Next, configure the gateway itself. The `reload_mode = "hybrid"` setting means the gateway will hot-reload most config changes but restart for structural ones.
+
+```hcl
+resource "openclaw_gateway" "main" {
+  port        = 18789
+  bind        = "loopback"
+  reload_mode = "hybrid"
+}
+```
+
+`bind = "loopback"` keeps the gateway listening only on localhost — safe for a personal machine.
+
+## Step 2 — Agent Defaults
+
+Agent defaults apply to every agent unless explicitly overridden. This is where you set your preferred model, timeouts, and sandbox behavior.
+
+```hcl
+resource "openclaw_agent_defaults" "main" {
+  workspace       = "~/.openclaw/workspace"
+  model_primary   = "anthropic/claude-opus-4-6"
+  model_fallbacks = ["openai/gpt-5.2"]
+
+  thinking_default = "low"
+  timeout_seconds  = 600
+  max_concurrent   = 1
+
+  heartbeat_every  = "30m"
+  heartbeat_target = "last"
+
+  sandbox_mode  = "non-main"
+  sandbox_scope = "agent"
+}
+```
+
+Key choices here:
+
+- **`model_fallbacks`** — if the primary model is down or rate-limited, the gateway falls back to this list in order
+- **`heartbeat_every = "30m"`** — the agent sends a keep-alive message every 30 minutes to whichever channel last received a message (`heartbeat_target = "last"`)
+- **`sandbox_mode = "non-main"`** — sandboxes tool execution for all agents except the default one
+
+## Step 3 — WhatsApp Channel
+
+WhatsApp uses a pairing flow — you scan a QR code once and the session persists. The `allow_from` list restricts which phone numbers can interact with your agent.
+
+```hcl
+resource "openclaw_channel_whatsapp" "main" {
+  dm_policy          = "pairing"
+  allow_from         = ["+15555550123"]
+  text_chunk_limit   = 4000
+  send_read_receipts = true
+  group_policy       = "allowlist"
+}
+```
+
+- **`dm_policy = "pairing"`** — new users must pair before chatting (the safest option)
+- **`group_policy = "allowlist"`** — the bot only responds in explicitly allowed groups
+- **`text_chunk_limit = 4000`** — long agent responses are split into 4000-character chunks
+
+## Step 4 — Telegram Channel
+
+Telegram requires a bot token. We store it as a sensitive variable so it doesn't appear in plan output.
+
+```hcl
+variable "telegram_bot_token" {
+  type      = string
+  sensitive = true
+}
+
+resource "openclaw_channel_telegram" "main" {
+  enabled       = true
+  bot_token     = var.telegram_bot_token
+  dm_policy     = "pairing"
+  allow_from    = ["tg:123456789"]
+  stream_mode   = "partial"
+  reply_to_mode = "first"
+}
+```
+
+- **`stream_mode = "partial"`** — the agent streams partial responses as they're generated, giving real-time feedback
+- **`reply_to_mode = "first"`** — replies are threaded to the first message in the conversation
+
+## Step 5 — Verify with a Data Source
+
+Add a data source to confirm the config was written correctly:
+
+```hcl
+data "openclaw_config" "current" {}
+
+output "config_hash" {
+  value = data.openclaw_config.current.hash
+}
+```
+
+## Apply It
+
+```bash
+terraform init
+terraform plan -var="telegram_bot_token=YOUR_TOKEN"
+terraform apply -var="telegram_bot_token=YOUR_TOKEN"
+```
+
+After apply, inspect the generated config:
+
+```bash
+cat ~/.openclaw/openclaw.json | jq .
+```
+
+Then start the gateway:
+
+```bash
+openclaw gateway --port 18789
+```
+
+## Full Source
+
+See [`examples/basic/main.tf`](https://github.com/kylemclaren/terraform-provider-openclaw/blob/main/examples/basic/main.tf) for the complete file.
+
+## Next Steps
+
+- Add more channels — see [Discord](/docs/resources/channel-discord), [Slack](/docs/resources/channel-slack), [Signal](/docs/resources/channel-signal)
+- Set up multiple agents with routing — see [Multi-Agent Example](/docs/examples/multi-agent)
+- Switch to WebSocket mode for live config management — see [Provider Configuration](/docs/provider)

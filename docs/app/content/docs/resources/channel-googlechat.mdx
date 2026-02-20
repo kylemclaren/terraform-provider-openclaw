@@ -1,0 +1,43 @@
+---
+title: openclaw_channel_googlechat
+description: Manages the OpenClaw Google Chat channel.
+icon: MessagesSquare
+---
+
+Manages the Google Chat channel configuration including webhook path, bot user, and group policy.
+
+## Example Usage
+
+```hcl
+resource "openclaw_channel_googlechat" "main" {
+  enabled      = true
+  webhook_path = "/hooks/gchat"
+  dm_policy    = "allowlist"
+  dm_allow_from = ["user@company.com"]
+  group_policy = "open"
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable the Google Chat channel. |
+| `webhook_path` | String | No | -- | Webhook path for incoming messages. |
+| `bot_user` | String | No | -- | Bot user identifier. |
+| `dm_policy` | String | No | `"pairing"` | DM policy: `pairing`, `allowlist`, `open`, `disabled`. |
+| `dm_allow_from` | List(String) | No | -- | User identifiers allowed to send DMs. |
+| `group_policy` | String | No | `"allowlist"` | Group policy: `allowlist`, `open`, `disabled`. |
+| `media_max_mb` | Int64 | No | `20` | Max inbound media size in MB. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channel_googlechat"`. |
+
+## Import
+
+```bash
+terraform import openclaw_channel_googlechat.main channel_googlechat
+```

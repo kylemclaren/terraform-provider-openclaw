@@ -1,0 +1,41 @@
+---
+title: openclaw_hook
+description: Manages the OpenClaw webhook configuration.
+icon: Webhook
+---
+
+Manages the webhook (hooks) configuration. Webhooks allow external systems to trigger agent actions via HTTP.
+
+This is a singleton resource.
+
+## Example Usage
+
+```hcl
+resource "openclaw_hook" "main" {
+  enabled             = true
+  token               = var.hook_token
+  path                = "/hooks"
+  default_session_key = "webhook-session"
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable hooks. |
+| `token` | String | No | -- | Authentication token for hooks. **Sensitive.** |
+| `path` | String | No | `"/hooks"` | URL path prefix for hooks. |
+| `default_session_key` | String | No | -- | Default session key when none is specified in the hook request. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"hook"`. |
+
+## Import
+
+```bash
+terraform import openclaw_hook.main hook
+```

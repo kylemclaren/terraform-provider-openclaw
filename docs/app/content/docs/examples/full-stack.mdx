@@ -1,0 +1,331 @@
+---
+title: "Full-Stack: Every Resource Type"
+description: A comprehensive config exercising all 18 resources — agents, channels, plugins, skills, hooks, cron, and tools.
+icon: Layers
+---
+
+This walkthrough is the kitchen-sink example — it uses every resource type the provider offers. Use it as a reference for any resource you need, or as a starting point for a production-grade deployment.
+
+**What you'll configure:**
+- Gateway with Tailscale exposure
+- Two agents ("home" and "work") with identity customization
+- Bindings to route channels to agents
+- Five chat channels (WhatsApp, Telegram, Discord, Slack, Signal)
+- Session lifecycle with daily resets
+- Message handling with acknowledgment reactions
+- A plugin, a skill, webhooks, cron, and tools
+
+## Variables
+
+This config uses several sensitive variables for bot tokens and API keys. Define them in a `terraform.tfvars` file or pass them via `-var`:
+
+```hcl
+variable "gateway_token" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "telegram_bot_token" {
+  type      = string
+  sensitive = true
+}
+
+variable "discord_bot_token" {
+  type      = string
+  sensitive = true
+}
+
+variable "slack_bot_token" {
+  type      = string
+  sensitive = true
+}
+
+variable "slack_app_token" {
+  type      = string
+  sensitive = true
+}
+
+variable "gemini_api_key" {
+  type      = string
+  sensitive = true
+}
+```
+
+## Gateway with Tailscale
+
+Expose the gateway over your tailnet with `tailscale_mode = "serve"`. This makes it accessible to other devices on your Tailscale network without opening ports to the public internet.
+
+```hcl
+resource "openclaw_gateway" "main" {
+  port           = 18789
+  bind           = "loopback"
+  reload_mode    = "hybrid"
+  tailscale_mode = "serve"
+}
+```
+
+## Two Agents with Identities
+
+Define a "home" agent (default) and a "work" agent with different models and sandbox settings. The `identity_*` fields control how the agent presents itself in chat.
+
+```hcl
+resource "openclaw_agent" "home" {
+  agent_id      = "home"
+  default_agent = true
+  name          = "Molty"
+  workspace     = "~/.openclaw/workspace-home"
+  model         = "anthropic/claude-opus-4-6"
+
+  identity_name  = "Molty"
+  identity_emoji = "\ud83e\udd9e"
+  identity_theme = "helpful space lobster"
+
+  mention_patterns = ["@openclaw", "molty"]
+}
+
+resource "openclaw_agent" "work" {
+  agent_id  = "work"
+  name      = "Work Agent"
+  workspace = "~/.openclaw/workspace-work"
+  model     = "anthropic/claude-sonnet-4-5"
+
+  sandbox_mode  = "all"
+  sandbox_scope = "session"
+
+  tools_profile = "coding"
+  tools_deny    = ["canvas"]
+}
+```
+
+Key differences:
+
+| | Home Agent | Work Agent |
+|---|---|---|
+| **Model** | Opus (max capability) | Sonnet (fast + capable) |
+| **Sandbox** | `non-main` (inherited) | `all` (everything sandboxed) |
+| **Tools** | Default profile | `coding` profile, canvas denied |
+| **Identity** | Custom name + emoji | Plain |
+
+## Agent Routing with Bindings
+
+Bindings connect channels to agents. Here, WhatsApp goes to the home agent and Telegram goes to the work agent:
+
+```hcl
+resource "openclaw_binding" "home_wa" {
+  agent_id         = openclaw_agent.home.agent_id
+  match_channel    = "whatsapp"
+  match_account_id = "personal"
+}
+
+resource "openclaw_binding" "work_tg" {
+  agent_id      = openclaw_agent.work.agent_id
+  match_channel = "telegram"
+}
+```
+
+Notice how `agent_id` references the agent resource directly — Terraform handles the dependency ordering automatically.
+
+## Five Channels
+
+### WhatsApp and Telegram
+
+```hcl
+resource "openclaw_channel_whatsapp" "main" {
+  dm_policy          = "pairing"
+  allow_from         = ["+15555550123"]
+  send_read_receipts = true
+  group_policy       = "allowlist"
+}
+
+resource "openclaw_channel_telegram" "main" {
+  enabled       = true
+  bot_token     = var.telegram_bot_token
+  dm_policy     = "pairing"
+  allow_from    = ["tg:123456789"]
+  stream_mode   = "partial"
+  reply_to_mode = "first"
+  history_limit = 50
+}
+```
+
+### Discord with Actions
+
+Discord supports granular action permissions — reactions, threads, pins, and search can each be toggled independently:
+
+```hcl
+resource "openclaw_channel_discord" "main" {
+  enabled        = true
+  token          = var.discord_bot_token
+  dm_policy      = "pairing"
+  allow_from     = ["steipete", "1234567890123"]
+  history_limit  = 20
+  reply_to_mode  = "off"
+
+  actions_reactions = true
+  actions_messages  = true
+  actions_threads   = true
+  actions_pins      = true
+  actions_search    = true
+}
+```
+
+### Slack (Socket Mode)
+
+Slack requires both a bot token and an app token for Socket Mode:
+
+```hcl
+resource "openclaw_channel_slack" "main" {
+  enabled        = true
+  bot_token      = var.slack_bot_token
+  app_token      = var.slack_app_token
+  dm_policy      = "pairing"
+  allow_from     = ["U123", "U456"]
+  history_limit  = 50
+  reply_to_mode  = "off"
+  reaction_notifications = "own"
+}
+```
+
+### Signal
+
+```hcl
+resource "openclaw_channel_signal" "main" {
+  enabled                = true
+  dm_policy              = "pairing"
+  reaction_notifications = "own"
+  history_limit          = 50
+}
+```
+
+## Session Lifecycle
+
+Control when conversations reset. Daily resets at 4 AM keep context fresh, and users can trigger a reset manually with `/new` or `/reset`:
+
+```hcl
+resource "openclaw_session" "config" {
+  dm_scope           = "per-channel-peer"
+  reset_mode         = "daily"
+  reset_at_hour      = 4
+  reset_idle_minutes = 120
+  reset_triggers     = ["/new", "/reset"]
+}
+```
+
+`dm_scope = "per-channel-peer"` means each user on each channel gets their own session — your WhatsApp conversation doesn't share context with your Telegram one.
+
+## Message Handling
+
+Configure how the gateway processes messages — acknowledgment reactions, queue behavior, and debounce timing:
+
+```hcl
+resource "openclaw_messages" "config" {
+  response_prefix     = "\ud83e\udd9e"
+  ack_reaction        = "\ud83d\udc40"
+  ack_reaction_scope  = "group-mentions"
+  queue_mode          = "collect"
+  queue_debounce_ms   = 1000
+  queue_cap           = 20
+  inbound_debounce_ms = 2000
+}
+```
+
+- **`ack_reaction`** — the agent reacts with eyes when it starts processing a message
+- **`queue_mode = "collect"`** — if multiple messages arrive quickly, they're collected into a single agent prompt
+- **`inbound_debounce_ms = 2000`** — waits 2 seconds for additional messages before processing
+
+## Automation: Plugins, Skills, Hooks, Cron
+
+### Plugin
+
+```hcl
+resource "openclaw_plugin" "voice_call" {
+  plugin_id = "voice-call"
+  enabled   = true
+  config_json = jsonencode({
+    provider = "twilio"
+  })
+}
+```
+
+### Skill
+
+```hcl
+resource "openclaw_skill" "nano_banana" {
+  skill_name = "nano-banana-pro"
+  enabled    = true
+  api_key    = var.gemini_api_key
+}
+```
+
+### Webhooks
+
+```hcl
+resource "openclaw_hook" "ingress" {
+  enabled             = true
+  token               = "shared-webhook-secret"
+  path                = "/hooks"
+  default_session_key = "hook:ingress"
+}
+```
+
+### Cron
+
+```hcl
+resource "openclaw_cron" "config" {
+  enabled             = true
+  max_concurrent_runs = 2
+  session_retention   = "24h"
+}
+```
+
+## Tool Access Control
+
+Lock down which tools agents can use. The `coding` profile is a sensible preset, and you can layer on specific denials:
+
+```hcl
+resource "openclaw_tools" "config" {
+  profile          = "coding"
+  deny             = ["canvas"]
+  elevated_enabled = true
+  browser_enabled  = true
+}
+```
+
+## Data Sources
+
+Round it out with data sources for verification:
+
+```hcl
+data "openclaw_config" "current" {}
+data "openclaw_health" "gw" {}
+
+output "config_hash" {
+  value = data.openclaw_config.current.hash
+}
+
+output "gateway_version" {
+  value = data.openclaw_health.gw.version
+}
+```
+
+## Apply It
+
+```bash
+terraform init
+terraform apply -var-file="secrets.tfvars"
+```
+
+Where `secrets.tfvars` contains:
+
+```hcl
+telegram_bot_token = "123456:ABC-DEF..."
+discord_bot_token  = "MTIzNDU2..."
+slack_bot_token    = "xoxb-..."
+slack_app_token    = "xapp-..."
+gemini_api_key     = "AIza..."
+```
+
+## Full Source
+
+See [`examples/full-stack/main.tf`](https://github.com/kylemclaren/terraform-provider-openclaw/blob/main/examples/full-stack/main.tf) for the complete file.

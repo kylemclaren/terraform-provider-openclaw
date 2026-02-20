@@ -1,0 +1,41 @@
+---
+title: openclaw_channel_signal
+description: Manages the OpenClaw Signal channel.
+icon: Shield
+---
+
+Manages the Signal channel configuration.
+
+## Example Usage
+
+```hcl
+resource "openclaw_channel_signal" "main" {
+  enabled                = true
+  dm_policy              = "allowlist"
+  allow_from             = ["+15555550123"]
+  reaction_notifications = "own"
+  history_limit          = 50
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `enabled` | Bool | No | -- | Enable or disable the Signal channel. |
+| `dm_policy` | String | No | `"pairing"` | DM policy: `pairing`, `allowlist`, `open`, `disabled`. |
+| `allow_from` | List(String) | No | -- | Phone numbers or identifiers allowed to message. |
+| `reaction_notifications` | String | No | `"own"` | Reaction notifications: `own`, `all`, `none`. |
+| `history_limit` | Int64 | No | `50` | Max chat history messages to fetch. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Always `"channel_signal"`. |
+
+## Import
+
+```bash
+terraform import openclaw_channel_signal.main channel_signal
+```

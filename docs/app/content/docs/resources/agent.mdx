@@ -1,0 +1,68 @@
+---
+title: openclaw_agent
+description: Manages an individual OpenClaw agent entry.
+icon: Bot
+---
+
+Manages an individual agent entry in `agents.list[]`. Use this to define multiple agents with different models, identities, tools, and sandbox settings. Pair with [`openclaw_binding`](/docs/resources/binding) to route channels to specific agents.
+
+## Example Usage
+
+```hcl
+resource "openclaw_agent" "research" {
+  agent_id      = "research"
+  name          = "Research Agent"
+  default_agent = false
+  model         = "openai/gpt-4.1"
+  workspace     = "~/.openclaw/workspace-research"
+
+  identity_name  = "Researcher"
+  identity_emoji = "\ud83d\udd2c"
+
+  mention_patterns = ["@research", "@researcher"]
+
+  sandbox_mode = "all"
+  sandbox_scope = "agent"
+}
+
+resource "openclaw_agent" "coding" {
+  agent_id      = "coding"
+  name          = "Coding Agent"
+  default_agent = true
+  model         = "anthropic/claude-sonnet-4-20250514"
+
+  tools_profile = "coding"
+  tools_allow   = ["bash", "read", "write", "glob", "grep"]
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `agent_id` | String | **Yes** | Stable identifier for the agent. Maps to `id` in config. |
+| `default_agent` | Bool | No | Whether this is the default agent. |
+| `name` | String | No | Display name. |
+| `workspace` | String | No | Workspace path override. |
+| `model` | String | No | Model override (e.g. `anthropic/claude-opus-4-6`). |
+| `identity_name` | String | No | Identity display name. |
+| `identity_emoji` | String | No | Identity emoji. |
+| `identity_theme` | String | No | Identity theme color. |
+| `mention_patterns` | List(String) | No | Patterns that mention this agent in group chats. |
+| `sandbox_mode` | String | No | Sandbox mode: `off`, `non-main`, `all`. |
+| `sandbox_scope` | String | No | Sandbox scope: `session`, `agent`, `shared`. |
+| `tools_profile` | String | No | Tools profile name. |
+| `tools_allow` | List(String) | No | Allowed tool names. |
+| `tools_deny` | List(String) | No | Denied tool names. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Same as `agent_id`. |
+
+## Import
+
+```bash
+terraform import openclaw_agent.research research
+```

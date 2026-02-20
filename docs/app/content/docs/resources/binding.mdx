@@ -1,0 +1,67 @@
+---
+title: openclaw_binding
+description: Manages agent routing rules for OpenClaw.
+icon: Route
+---
+
+Manages an individual binding entry in `bindings[]`. Bindings route incoming messages from specific channels or peers to specific agents. This enables multi-agent setups where different channels talk to different agents.
+
+## Example Usage
+
+### Route Discord to a specific agent
+
+```hcl
+resource "openclaw_binding" "discord_research" {
+  agent_id      = "research"
+  match_channel = "discord"
+}
+```
+
+### Route a specific Telegram user to an agent
+
+```hcl
+resource "openclaw_binding" "telegram_vip" {
+  agent_id         = "coding"
+  match_channel    = "telegram"
+  match_account_id = "tg:123456789"
+}
+```
+
+### Route DMs vs groups differently
+
+```hcl
+resource "openclaw_binding" "whatsapp_dm" {
+  agent_id        = "personal"
+  match_channel   = "whatsapp"
+  match_peer_kind = "dm"
+}
+
+resource "openclaw_binding" "whatsapp_group" {
+  agent_id        = "team"
+  match_channel   = "whatsapp"
+  match_peer_kind = "group"
+}
+```
+
+## Argument Reference
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `agent_id` | String | **Yes** | Agent ID this binding routes to. |
+| `match_channel` | String | **Yes** | Channel to match (e.g. `discord`, `telegram`, `whatsapp`). |
+| `match_account_id` | String | No | Account ID to match. |
+| `match_peer_kind` | String | No | Peer kind: `dm` or `group`. |
+| `match_peer_id` | String | No | Specific peer ID to match. |
+
+## Attribute Reference
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `id` | String | Composite key: `agentId/channel` or `agentId/channel/accountId`. |
+
+## Import
+
+```bash
+terraform import openclaw_binding.discord_research "research/discord"
+terraform import openclaw_binding.telegram_vip "coding/telegram/tg:123456789"
+```
