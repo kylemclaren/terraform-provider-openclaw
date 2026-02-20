@@ -25,7 +25,7 @@ export default defineConfig({
     react(),
     // please see https://tanstack.com/start/latest/docs/framework/react/guide/hosting#nitro for guides on hosting
     nitro({
-      preset: 'vercel',
+      preset: process.env.NITRO_PRESET || 'vercel',
       vercel: {
         entryFormat: 'node',
       },

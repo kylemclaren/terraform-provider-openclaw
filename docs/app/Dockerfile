@@ -15,7 +15,8 @@ FROM base AS build
 
 # Install packages needed to build node modules
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y build-essential pkg-config python-is-python3
+    apt-get install --no-install-recommends -y build-essential pkg-config python-is-python3 && \
+    ln -s $(which bunx) /usr/local/bin/npx
 
 # Copy everything first — fumadocs-mdx postinstall needs source.config.ts
 COPY . .
@@ -23,7 +24,8 @@ COPY . .
 # Install dependencies (postinstall runs fumadocs-mdx which reads source.config.ts)
 RUN bun install
 
-# Build application
+# Build application (override vercel preset for Fly deployment)
+ENV NITRO_PRESET=bun
 RUN bun --bun run build
 
 # Remove dev dependencies for production
